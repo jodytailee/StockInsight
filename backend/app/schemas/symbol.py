@@ -20,3 +20,13 @@ class PricePointOut(BaseModel):
 
     price: float
     fetched_at: datetime
+
+
+class NewsItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    source: str
+    headline: str
+    url: str
+    published_at: datetime
+    sentiment_score: float

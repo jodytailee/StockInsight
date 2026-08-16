@@ -13,7 +13,7 @@
 | Precio en tiempo real (producción) | Finnhub (plan free) | `yfinance` bloquea/limita fuerte las IPs de datacenter (Render, AWS, etc.) — falla en producción con `YFRateLimitError`. Finnhub es gratis, pensado para uso vía API/cloud, 60 llamadas/min |
 | Datos históricos para entrenar el modelo | `yfinance` | Se mantiene para llamadas puntuales de histórico (menor volumen, menos propenso al bloqueo); si también falla en la nube, se ejecuta el entrenamiento localmente y solo se sube el modelo entrenado |
 | Noticias | Yahoo Finance + Google News (scraping/RSS) | Fuentes gratuitas decididas en el design doc |
-| Sentimiento de noticias | Modelo NLP pre-entrenado (ej. FinBERT vía `transformers`) | Evita entrenar un modelo de sentimiento desde cero; FinBERT está afinado para texto financiero |
+| Sentimiento de noticias | VADER (lexicon-based, vía `vaderSentiment`) | FinBERT (transformer) excede la RAM del free tier de Render (512MB) y hace crashear el servicio. VADER es liviano (unos MB, sin modelo pesado), corre bien en el free tier. Menos preciso que FinBERT pero funcional para v1; se puede reevaluar si el proyecto sube de plan |
 | Motor de proyección | 3 modelos ML independientes (scikit-learn / LightGBM), uno por horizonte | Según decisión del design doc §4.3 |
 | Tareas en segundo plano | APScheduler embebido en el proceso de FastAPI (v1) | Recolecta precios/noticias y corre los modelos en intervalos, dentro del mismo proceso que sirve el WebSocket — así puede empujar actualizaciones en vivo directamente sin infraestructura extra (Redis/Celery) |
 | Notificaciones | WebSocket (dashboard) + SMTP (email) + Web Push (escritorio Windows vía navegador) | Según canales decididos en el design doc §4.4 |

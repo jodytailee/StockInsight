@@ -26,6 +26,12 @@ export async function fetchPrice(ticker) {
   return res.json()
 }
 
+export async function fetchNews(ticker) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/news`)
+  if (!res.ok) throw new Error('No se pudo obtener las noticias')
+  return res.json()
+}
+
 export function connectPriceSocket(onMessage) {
   const socket = new WebSocket(WS_URL)
   socket.onmessage = (event) => {

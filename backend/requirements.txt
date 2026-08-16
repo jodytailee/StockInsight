@@ -9,3 +9,5 @@ pandas
 apscheduler
 python-dotenv
 requests
+feedparser
+vaderSentiment

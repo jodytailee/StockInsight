@@ -38,3 +38,43 @@
   padding: 0.5rem;
   border-bottom: 1px solid #ddd;
 }
+
+.news-section {
+  margin-top: 2rem;
+}
+
+.muted {
+  color: #888;
+}
+
+.news-list {
+  list-style: none;
+  padding: 0;
+}
+
+.news-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.news-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.sentiment-positive {
+  color: #1e8e3e;
+  font-weight: 600;
+}
+
+.sentiment-negative {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.sentiment-neutral {
+  color: #888;
+}
