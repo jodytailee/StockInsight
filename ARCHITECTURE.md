@@ -10,7 +10,8 @@
 | Backend | Python + FastAPI | Mejor ecosistema para ML, datos financieros (`yfinance`, `pandas`) y NLP de sentimiento. FastAPI da API REST + WebSockets nativos |
 | Frontend | React (Vite) | Dashboard en tiempo real vía WebSockets, accesible desde cualquier dispositivo |
 | Base de datos | PostgreSQL | Precio histórico, noticias, y resultados de proyección — relacional, con buen soporte en cualquier hosting hobby |
-| Precio de mercado | `yfinance` | Gratis, consistente con la fuente de datos históricos ya decidida en el design doc. ~15 min de delay (aceptable para v1, no day-trading de alta frecuencia) |
+| Precio en tiempo real (producción) | Finnhub (plan free) | `yfinance` bloquea/limita fuerte las IPs de datacenter (Render, AWS, etc.) — falla en producción con `YFRateLimitError`. Finnhub es gratis, pensado para uso vía API/cloud, 60 llamadas/min |
+| Datos históricos para entrenar el modelo | `yfinance` | Se mantiene para llamadas puntuales de histórico (menor volumen, menos propenso al bloqueo); si también falla en la nube, se ejecuta el entrenamiento localmente y solo se sube el modelo entrenado |
 | Noticias | Yahoo Finance + Google News (scraping/RSS) | Fuentes gratuitas decididas en el design doc |
 | Sentimiento de noticias | Modelo NLP pre-entrenado (ej. FinBERT vía `transformers`) | Evita entrenar un modelo de sentimiento desde cero; FinBERT está afinado para texto financiero |
 | Motor de proyección | 3 modelos ML independientes (scikit-learn / LightGBM), uno por horizonte | Según decisión del design doc §4.3 |

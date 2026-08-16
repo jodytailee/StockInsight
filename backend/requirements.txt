@@ -8,3 +8,4 @@ yfinance
 pandas
 apscheduler
 python-dotenv
+requests
