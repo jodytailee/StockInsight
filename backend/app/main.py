@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app import models
+from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.schemas.symbol import PricePointOut, SymbolCreate, SymbolOut
 from app.services.price_service import fetch_current_price
@@ -62,7 +63,7 @@ app = FastAPI(title="StockInsight API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", settings.frontend_url],
     allow_methods=["*"],
     allow_headers=["*"],
 )

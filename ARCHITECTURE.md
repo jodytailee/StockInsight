@@ -16,7 +16,9 @@
 | Motor de proyección | 3 modelos ML independientes (scikit-learn / LightGBM), uno por horizonte | Según decisión del design doc §4.3 |
 | Tareas en segundo plano | APScheduler embebido en el proceso de FastAPI (v1) | Recolecta precios/noticias y corre los modelos en intervalos, dentro del mismo proceso que sirve el WebSocket — así puede empujar actualizaciones en vivo directamente sin infraestructura extra (Redis/Celery) |
 | Notificaciones | WebSocket (dashboard) + SMTP (email) + Web Push (escritorio Windows vía navegador) | Según canales decididos en el design doc §4.4 |
-| Hosting | Railway (plan hobby) | Económico, soporta Postgres + backend Python + frontend en un mismo proyecto, deploy simple desde GitHub |
+| Hosting frontend | Vercel (plan gratis) | Deploy directo desde GitHub, gratis para un proyecto personal |
+| Hosting backend | Render (plan free) + keep-alive ping cada ~10 min (GitHub Actions) | Gratis. El free tier de Render duerme tras ~15 min sin tráfico; un ping periódico externo lo mantiene despierto de forma efectiva, sin costo |
+| Base de datos | Neon (Postgres serverless, plan free) | Render free no ofrece disco persistente ni Postgres gratis permanente — Neon da Postgres gratis "para siempre" con límite generoso, ideal para el volumen de v1 |
 
 ## 2. Componentes
 
