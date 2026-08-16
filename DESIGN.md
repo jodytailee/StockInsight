@@ -1,7 +1,8 @@
 # StockInsight — Documento de Diseño
 
-> Estado: Alcance de v1 definido. Este documento define el propósito, alcance y
-> requisitos antes de tomar decisiones de código o arquitectura.
+> Estado: Alcance de v1 cerrado. Este documento define el propósito, alcance y
+> requisitos antes de tomar decisiones de código o arquitectura. Listo para
+> pasar a la fase de arquitectura.
 
 ## 1. Visión
 
@@ -38,29 +39,30 @@ de cuentas/login ni aislamiento de datos multiusuario en v1.
 ### 4.2 Agregación de noticias
 - Recolección en tiempo real de noticias relacionadas con la empresa desde
   los principales sitios de noticias financieras.
-- Fuentes priorizadas para v1: Yahoo Finance, Google News, Bloomberg/Reuters,
-  y sentimiento de redes sociales (X/Twitter, Reddit).
-- **[ABIERTO]** Bloomberg/Reuters y las APIs de redes sociales suelen requerir
-  suscripción de pago o tener límites estrictos de acceso — hay que evaluar
-  costo y disponibilidad real de cada API antes de comprometerse a integrarla
-  en v1 (puede que alguna quede para una fase posterior).
+- Fuentes para v1: **solo fuentes gratuitas** — Yahoo Finance y Google News.
+  Bloomberg/Reuters y sentimiento de redes sociales (X/Reddit) quedan fuera de
+  v1 por su costo/límites de acceso; se reevalúan para una fase futura si el
+  proyecto lo justifica.
 
 ### 4.3 Motor de proyección
 - Genera una proyección de dirección del precio (sube/baja) para 3 horizontes:
   próximos minutos, próximo día, próxima semana.
-- Se construirá un **modelo de Machine Learning propio**, entrenado con
-  histórico de precios y sentimiento de noticias, en lugar de limitarse a
-  indicadores técnicos estándar.
-- **[ABIERTO]** Enfoque del modelo: ¿un solo modelo para los 3 horizontes o
-  un modelo distinto por horizonte? ¿Qué features de entrada (precio,
-  volumen, sentimiento de noticias, indicadores técnicos como insumo del
-  modelo, etc.)?
-- **[ABIERTO]** Fuente y volumen de datos históricos para entrenamiento, y
-  estrategia de reentrenamiento/actualización del modelo con datos nuevos.
-- **[ABIERTO]** Nivel de precisión esperado / cómo se va a medir el éxito de
-  la proyección (esto es difícil de garantizar — hay que dejar expectativas
-  claras desde el diseño, y comunicar que es una señal probabilística, no
-  una certeza).
+- Se construirán **3 modelos de Machine Learning independientes, uno por
+  horizonte** (minutos / día / semana), cada uno optimizado para su propia
+  ventana temporal, en lugar de un único modelo genérico.
+- Datos de entrenamiento: histórico de precios desde una **API gratuita**
+  (ej. Yahoo Finance / `yfinance`) combinado con sentimiento extraído de las
+  noticias recolectadas (sección 4.2).
+- **[ABIERTO]** Features exactas por modelo (precio, volumen, indicadores
+  técnicos derivados, score de sentimiento, etc.) y estrategia de
+  reentrenamiento/actualización — se definen en la fase de arquitectura, ya
+  con el stack técnico elegido.
+- **Métrica de éxito**: retorno simulado. Se hará un backtest que simula
+  haber seguido cada recomendación histórica del modelo y mide el retorno
+  acumulado hipotético resultante, comparado contra una estrategia base
+  (ej. buy-and-hold) — es más representativo del valor real que solo medir
+  si acertó la dirección.
+- Se comunica siempre que es una señal probabilística, no una certeza.
 
 ### 4.4 Notificaciones en tiempo real
 - El sistema notifica al usuario ante eventos relevantes (cambio brusco de
@@ -94,26 +96,59 @@ de cuentas/login ni aislamiento de datos multiusuario en v1.
 
 ## 7. Responsabilidad y disclaimers
 
+> **Nota**: este análisis es orientativo, basado en conocimiento general de
+> regulación financiera (perspectiva EE.UU., por ser la referencia más común
+> en este tipo de herramientas). **No es asesoría legal.** Si en algún
+> momento el proyecto deja de ser 100% personal, se recomienda consultar con
+> un abogado especializado en regulación de valores/fintech antes de lanzar.
+
 - Las recomendaciones de compra/venta son una señal informativa generada por
   un modelo de proyección, **no constituyen asesoría financiera profesional**.
   Esto debe quedar visible en la interfaz cada vez que se muestre una
   recomendación.
-- **[ABIERTO]** Evaluar si, al ser de uso estrictamente personal (sección 3),
-  hay implicaciones legales reales a considerar, o si con el disclaimer basta
-  para v1.
+
+**¿Por qué uso estrictamente personal reduce el riesgo?**
+En EE.UU., por ejemplo, la regulación de "investment adviser" (Investment
+Advisers Act) aplica a quien da consejo financiero **a terceros**, típicamente
+a cambio de compensación o como actividad comercial regular. Un sistema que
+tú mismo construyes, corres localmente y usas solo para tus propias
+decisiones no encaja en esa definición — no hay "cliente" ni "compensación"
+de por medio. El riesgo legal real aparece cuando la herramienta se comparte
+con otras personas, se cobra por su uso, o se promociona públicamente como
+fuente de recomendaciones.
+
+**Disparadores a vigilar** (si el proyecto evoluciona más allá de uso
+personal):
+1. **Compartir el acceso** con otras personas (aunque sea gratis) — puede
+   acercarse a "dar consejo a terceros".
+2. **Cobrar** por el acceso o las recomendaciones — activa con más fuerza la
+   regulación de asesoría de inversión.
+3. **Publicar las recomendaciones** abiertamente (ej. red social, sitio
+   público) — distinto régimen (más parecido a "publicación financiera" tipo
+   newsletter, con sus propias exenciones, pero igual amerita disclaimer
+   fuerte y, idealmente, revisión legal).
+4. **Conectar con un broker para ejecutar operaciones reales** (fuera de
+   alcance en v1, sección 5) — esto sí añade obligaciones regulatorias
+   adicionales serias y debe evaluarse con un abogado antes de construirse.
+
+**Decisión para v1**: dado que el uso es estrictamente personal (sección 3) y
+no hay intención de compartir, cobrar o publicar las recomendaciones, un
+disclaimer visible en la interfaz es suficiente por ahora. Si en el futuro se
+cruza cualquiera de los 4 disparadores anteriores, se debe revisar esta
+sección con asesoría legal real antes de avanzar.
 
 ## 8. Preguntas abiertas — resumen
 
+Todas las decisiones de alcance de v1 quedaron resueltas. Solo queda un
+detalle técnico fino a definir ya en la fase de arquitectura:
+
 | # | Pregunta | Impacto |
 |---|----------|---------|
-| 1 | Costo/disponibilidad real de APIs de Bloomberg/Reuters y redes sociales | Puede reducir el set de fuentes de noticias de v1 |
-| 2 | Diseño del modelo ML (features, un modelo por horizonte o uno solo) | Complejidad y tiempo de desarrollo del motor de proyección |
-| 3 | Fuente y estrategia de datos históricos para entrenar/reentrenar el modelo | Viabilidad y calidad del motor de proyección |
-| 4 | Cómo medir el éxito/precisión de las proyecciones | Define métricas de evaluación del modelo |
-| 5 | Implicaciones legales de las recomendaciones en uso personal | Alcance del disclaimer necesario |
+| 1 | Features exactas de cada uno de los 3 modelos y estrategia de reentrenamiento | Se define junto con el stack técnico (sección 4.3) |
 
 ## 9. Próximos pasos
 
-1. Resolver las preguntas abiertas de la sección 8 con el usuario (mayormente
-   relacionadas al diseño del modelo ML y las fuentes de datos).
-2. Recién entonces pasar a decisiones de arquitectura y stack tecnológico.
+Con el alcance de v1 definido, el siguiente paso es pasar a decisiones de
+arquitectura y stack tecnológico (lenguaje/framework, fuente de datos de
+precio en tiempo real, almacenamiento, cómo se sirve el modelo ML, diseño del
+dashboard web y del sistema de notificaciones).
