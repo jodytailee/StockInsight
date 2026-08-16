@@ -14,7 +14,7 @@
 | Noticias | Yahoo Finance + Google News (scraping/RSS) | Fuentes gratuitas decididas en el design doc |
 | Sentimiento de noticias | Modelo NLP pre-entrenado (ej. FinBERT vía `transformers`) | Evita entrenar un modelo de sentimiento desde cero; FinBERT está afinado para texto financiero |
 | Motor de proyección | 3 modelos ML independientes (scikit-learn / LightGBM), uno por horizonte | Según decisión del design doc §4.3 |
-| Tareas en segundo plano | APScheduler (v1) | Recolecta precios/noticias y corre los modelos en intervalos — más simple que Celery+Redis para el volumen de v1 (1-10 símbolos) |
+| Tareas en segundo plano | APScheduler embebido en el proceso de FastAPI (v1) | Recolecta precios/noticias y corre los modelos en intervalos, dentro del mismo proceso que sirve el WebSocket — así puede empujar actualizaciones en vivo directamente sin infraestructura extra (Redis/Celery) |
 | Notificaciones | WebSocket (dashboard) + SMTP (email) + Web Push (escritorio Windows vía navegador) | Según canales decididos en el design doc §4.4 |
 | Hosting | Railway (plan hobby) | Económico, soporta Postgres + backend Python + frontend en un mismo proyecto, deploy simple desde GitHub |
 

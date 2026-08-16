@@ -1,0 +1,35 @@
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws'
+
+export async function fetchSymbols() {
+  const res = await fetch(`${API_URL}/symbols`)
+  if (!res.ok) throw new Error('No se pudieron cargar los símbolos')
+  return res.json()
+}
+
+export async function addSymbol(ticker) {
+  const res = await fetch(`${API_URL}/symbols`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'No se pudo agregar el símbolo')
+  }
+  return res.json()
+}
+
+export async function fetchPrice(ticker) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/price`)
+  if (!res.ok) throw new Error('No se pudo obtener el precio')
+  return res.json()
+}
+
+export function connectPriceSocket(onMessage) {
+  const socket = new WebSocket(WS_URL)
+  socket.onmessage = (event) => {
+    onMessage(JSON.parse(event.data))
+  }
+  return socket
+}

@@ -1,4 +1,8 @@
+from contextlib import asynccontextmanager
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app import models
@@ -8,9 +12,60 @@ from app.services.price_service import fetch_current_price
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="StockInsight API")
+PRICE_POLL_INTERVAL_MINUTES = 5
 
 connected_clients: list[WebSocket] = []
+scheduler = AsyncIOScheduler()
+
+
+async def broadcast(message: dict):
+    for client in list(connected_clients):
+        try:
+            await client.send_json(message)
+        except Exception:
+            connected_clients.remove(client)
+
+
+async def poll_prices_job():
+    db = SessionLocal()
+    try:
+        symbols = db.query(models.Symbol).all()
+        for symbol in symbols:
+            try:
+                price = fetch_current_price(symbol.ticker)
+            except ValueError:
+                continue
+            point = models.PricePoint(symbol_id=symbol.id, price=price)
+            db.add(point)
+            db.commit()
+            db.refresh(point)
+            await broadcast(
+                {
+                    "ticker": symbol.ticker,
+                    "price": price,
+                    "fetched_at": point.fetched_at.isoformat(),
+                }
+            )
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.add_job(poll_prices_job, "interval", minutes=PRICE_POLL_INTERVAL_MINUTES)
+    scheduler.start()
+    yield
+    scheduler.shutdown()
+
+
+app = FastAPI(title="StockInsight API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
