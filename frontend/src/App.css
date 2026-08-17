@@ -150,6 +150,35 @@
   font-weight: normal;
 }
 
+.ai-analysis-box {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.ai-analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ai-analysis-header button {
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.ai-analysis-text {
+  margin-top: 0.75rem;
+  line-height: 1.5;
+}
+
+.ai-analysis-meta {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
 .position-box {
   background: var(--surface);
   border-radius: 8px;

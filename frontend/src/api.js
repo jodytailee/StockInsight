@@ -71,6 +71,13 @@ export async function fetchInsights(ticker) {
   return res.json()
 }
 
+export async function fetchAiAnalysis(ticker, refresh = false) {
+  const url = `${API_URL}/symbols/${ticker}/analysis${refresh ? '?refresh=true' : ''}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('No se pudo generar el análisis de IA')
+  return res.json()
+}
+
 export async function fetchNews(ticker) {
   const res = await fetch(`${API_URL}/symbols/${ticker}/news`)
   if (!res.ok) throw new Error('No se pudo obtener las noticias')

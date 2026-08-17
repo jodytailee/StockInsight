@@ -3,6 +3,7 @@ import {
   addLot,
   addSymbol,
   connectPriceSocket,
+  fetchAiAnalysis,
   fetchInsights,
   fetchLots,
   fetchNews,
@@ -146,6 +147,46 @@ function LotRow({ ticker, lot, onChanged, onError }) {
         </button>
       </span>
     </li>
+  )
+}
+
+function AiAnalysisSection({ ticker }) {
+  const [analysis, setAnalysis] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  function load(refresh = false) {
+    setLoading(true)
+    setError('')
+    fetchAiAnalysis(ticker, refresh)
+      .then(setAnalysis)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker])
+
+  return (
+    <div className="ai-analysis-box">
+      <div className="ai-analysis-header">
+        <h3 style={{ margin: 0 }}>Análisis IA</h3>
+        <button type="button" onClick={() => load(true)} disabled={loading}>
+          {loading ? 'Generando...' : 'Regenerar'}
+        </button>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {analysis && (
+        <>
+          <p className="ai-analysis-text">{analysis.text}</p>
+          <p className="muted ai-analysis-meta">
+            Generado: {new Date(analysis.generated_at).toLocaleString()}
+          </p>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -413,6 +454,7 @@ function App() {
               <th>Sentimiento medio</th>
               <th>Sentimiento largo</th>
               <th>Analistas</th>
+              <th>Recomendación</th>
               <th>Target 1sem</th>
               <th>Target 1mes</th>
               <th>Target 1año</th>
@@ -443,6 +485,9 @@ function App() {
                   <td className={insight ? ratingClassName(insight.analyst_rating) : ''}>
                     {insight?.analyst_rating ?? '—'}
                   </td>
+                  <td className={insight ? recommendationClassName(insight.recommendation_1w.action) : ''}>
+                    {insight?.recommendation_1w.action ?? '—'}
+                  </td>
                   <td>{insight ? `$${insight.target_price_1w.toFixed(2)}` : '—'}</td>
                   <td>{insight ? `$${insight.target_price_1m.toFixed(2)}` : '—'}</td>
                   <td>{insight ? `$${insight.target_price_1y.toFixed(2)}` : '—'}</td>
@@ -463,6 +508,7 @@ function App() {
       {symbols.map((s) => (
         <section key={s.ticker} className="symbol-detail">
           <h2>{s.ticker}</h2>
+          <AiAnalysisSection ticker={s.ticker} />
           <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onLotsChanged={handleLotsChanged} />
 
           <h3>Noticias</h3>

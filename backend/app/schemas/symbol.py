@@ -74,6 +74,11 @@ class RecommendationOut(BaseModel):
     expected_return_pct: float
 
 
+class AiAnalysisOut(BaseModel):
+    text: str
+    generated_at: datetime
+
+
 class InsightsOut(BaseModel):
     sentiment_short_term: float | None
     sentiment_medium_term: float | None

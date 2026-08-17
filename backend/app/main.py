@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -12,6 +12,7 @@ from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.schemas.symbol import (
+    AiAnalysisOut,
     InsightsOut,
     NewsItemOut,
     PositionLotCreate,
@@ -23,6 +24,7 @@ from app.schemas.symbol import (
     SymbolPositionUpdate,
 )
 from app.ml.predict import predict_direction
+from app.services.ai_analysis_service import generate_analysis
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.digest_service import build_daily_digest_html
 from app.services.email_service import send_email
@@ -48,6 +50,10 @@ def _ensure_symbol_columns():
             conn.execute(text("ALTER TABLE symbols ADD COLUMN quantity FLOAT"))
         if "avg_cost" not in columns:
             conn.execute(text("ALTER TABLE symbols ADD COLUMN avg_cost FLOAT"))
+        if "ai_analysis" not in columns:
+            conn.execute(text("ALTER TABLE symbols ADD COLUMN ai_analysis TEXT"))
+        if "ai_analysis_generated_at" not in columns:
+            conn.execute(text("ALTER TABLE symbols ADD COLUMN ai_analysis_generated_at TIMESTAMP"))
 
 
 Base.metadata.create_all(bind=engine)
@@ -329,12 +335,7 @@ def remove_lot(ticker: str, lot_id: int, db: Session = Depends(get_db)):
     refresh_symbol_position(db, symbol)
 
 
-@app.get("/symbols/{ticker}/insights", response_model=InsightsOut)
-def get_insights(ticker: str, db: Session = Depends(get_db)):
-    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
-    if not symbol:
-        raise HTTPException(status_code=404, detail="Symbol not tracked")
-
+def _get_current_price(db, symbol) -> float:
     latest_point = (
         db.query(models.PricePoint)
         .filter_by(symbol_id=symbol.id)
@@ -342,10 +343,12 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
         .first()
     )
     if latest_point:
-        current_price = latest_point.price
-    else:
-        current_price = fetch_current_price(symbol.ticker)
+        return latest_point.price
+    return fetch_current_price(symbol.ticker)
 
+
+def _compute_insights(db, symbol) -> InsightsOut:
+    current_price = _get_current_price(db, symbol)
     sentiment = aggregate_sentiment(db, symbol.id)
 
     try:
@@ -381,6 +384,53 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
         recommendation_1m=recommendations["1m"],
         recommendation_1y=recommendations["1y"],
     )
+
+
+@app.get("/symbols/{ticker}/insights", response_model=InsightsOut)
+def get_insights(ticker: str, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    return _compute_insights(db, symbol)
+
+
+ANALYSIS_MAX_AGE = timedelta(hours=12)
+
+
+@app.get("/symbols/{ticker}/analysis", response_model=AiAnalysisOut)
+def get_ai_analysis(ticker: str, refresh: bool = False, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    is_stale = (
+        not symbol.ai_analysis
+        or not symbol.ai_analysis_generated_at
+        or datetime.now(timezone.utc) - symbol.ai_analysis_generated_at.replace(tzinfo=timezone.utc) > ANALYSIS_MAX_AGE
+    )
+
+    if is_stale or refresh:
+        insight = _compute_insights(db, symbol)
+        current_price = _get_current_price(db, symbol)
+        headlines = [
+            n.headline
+            for n in db.query(models.NewsItem)
+            .filter_by(symbol_id=symbol.id)
+            .order_by(desc(models.NewsItem.published_at))
+            .limit(8)
+            .all()
+        ]
+        try:
+            text = generate_analysis(symbol.ticker, current_price, insight.model_dump(), headlines)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"No se pudo generar el análisis: {e}")
+
+        symbol.ai_analysis = text
+        symbol.ai_analysis_generated_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return AiAnalysisOut(text=symbol.ai_analysis, generated_at=symbol.ai_analysis_generated_at)
 
 
 @app.get("/symbols/{ticker}/news", response_model=list[NewsItemOut])

@@ -1,6 +1,6 @@
 from datetime import date as date_, datetime, timezone
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,8 @@ class Symbol(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ai_analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_analysis_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     prices: Mapped[list["PricePoint"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
     news: Mapped[list["NewsItem"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
