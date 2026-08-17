@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { addSymbol, connectPriceSocket, fetchNews, fetchPrice, fetchSymbols } from './api'
+import { addSymbol, connectPriceSocket, fetchNews, fetchPrice, fetchSymbols, removeSymbol } from './api'
 import './App.css'
 
 function sentimentLabel(score) {
@@ -47,6 +47,23 @@ function App() {
     })
     return () => socket.close()
   }, [])
+
+  async function handleRemoveSymbol(ticker) {
+    try {
+      await removeSymbol(ticker)
+      setSymbols((prev) => prev.filter((s) => s.ticker !== ticker))
+      setPrices((prev) => {
+        const { [ticker]: _removed, ...rest } = prev
+        return rest
+      })
+      setNews((prev) => {
+        const { [ticker]: _removed, ...rest } = prev
+        return rest
+      })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   async function handleAddSymbol(e) {
     e.preventDefault()
@@ -96,6 +113,7 @@ function App() {
             <th>Símbolo</th>
             <th>Precio</th>
             <th>Actualizado</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +125,11 @@ function App() {
                 {prices[s.ticker]
                   ? new Date(prices[s.ticker].fetched_at).toLocaleTimeString()
                   : '—'}
+              </td>
+              <td>
+                <button type="button" className="remove-btn" onClick={() => handleRemoveSymbol(s.ticker)}>
+                  Quitar
+                </button>
               </td>
             </tr>
           ))}

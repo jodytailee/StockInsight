@@ -26,6 +26,11 @@ export async function fetchPrice(ticker) {
   return res.json()
 }
 
+export async function removeSymbol(ticker) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('No se pudo quitar el símbolo')
+}
+
 export async function fetchNews(ticker) {
   const res = await fetch(`${API_URL}/symbols/${ticker}/news`)
   if (!res.ok) throw new Error('No se pudo obtener las noticias')

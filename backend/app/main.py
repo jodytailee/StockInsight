@@ -148,12 +148,26 @@ def get_price(ticker: str, db: Session = Depends(get_db)):
     if not symbol:
         raise HTTPException(status_code=404, detail="Symbol not tracked")
 
-    price = fetch_current_price(symbol.ticker)
+    try:
+        price = fetch_current_price(symbol.ticker)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     point = models.PricePoint(symbol_id=symbol.id, price=price)
     db.add(point)
     db.commit()
     db.refresh(point)
     return point
+
+
+@app.delete("/symbols/{ticker}", status_code=204)
+def remove_symbol(ticker: str, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    db.delete(symbol)
+    db.commit()
 
 
 @app.get("/symbols/{ticker}/news", response_model=list[NewsItemOut])

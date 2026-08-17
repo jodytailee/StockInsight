@@ -78,3 +78,18 @@
 .sentiment-neutral {
   color: #888;
 }
+
+.remove-btn {
+  background: none;
+  border: 1px solid #c0392b;
+  color: #c0392b;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.remove-btn:hover {
+  background: #c0392b;
+  color: white;
+}
