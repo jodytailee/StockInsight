@@ -24,6 +24,8 @@ from app.schemas.symbol import (
 )
 from app.ml.predict import predict_direction
 from app.services.analyst_service import fetch_analyst_rating
+from app.services.digest_service import build_daily_digest_html
+from app.services.email_service import send_email
 from app.services.news_service import fetch_news
 from app.services.position_service import refresh_symbol_position
 from app.services.price_service import fetch_current_price
@@ -128,10 +130,21 @@ async def poll_news_job():
         db.close()
 
 
+async def send_daily_digest_job():
+    db = SessionLocal()
+    try:
+        html = build_daily_digest_html(db)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        send_email(f"StockInsight — Resumen diario ({today})", html)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.add_job(poll_prices_job, "interval", minutes=PRICE_POLL_INTERVAL_MINUTES)
     scheduler.add_job(poll_news_job, "interval", minutes=NEWS_POLL_INTERVAL_MINUTES)
+    scheduler.add_job(send_daily_digest_job, "cron", hour=14, minute=0)  # 8:00 AM UTC-6
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -145,6 +158,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.post("/digest/send-now")
+async def send_digest_now():
+    await send_daily_digest_job()
+    return {"status": "sent"}
 
 
 @app.get("/health")
