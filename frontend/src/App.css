@@ -6,6 +6,16 @@
   font-family: system-ui, sans-serif;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.brand h1 {
+  margin: 0;
+}
+
 .preliminary-note {
   font-size: 0.85rem;
   margin-bottom: 1rem;

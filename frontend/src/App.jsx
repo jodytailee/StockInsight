@@ -14,6 +14,37 @@ import {
 } from './api'
 import './App.css'
 
+function Logo() {
+  return (
+    <svg width="36" height="36" viewBox="0 0 64 64" className="logo-icon">
+      <defs>
+        <linearGradient id="chartGrad" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#1e3a8a" />
+          <stop offset="1" stopColor="#67e8f9" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M4 46 L16 34 L24 42 L34 20 L42 28 L58 8"
+        fill="none"
+        stroke="url(#chartGrad)"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M48 8 L58 8 L58 18"
+        fill="none"
+        stroke="url(#chartGrad)"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <ellipse cx="24" cy="46" rx="18" ry="10" fill="none" stroke="url(#chartGrad)" strokeWidth="4" />
+      <circle cx="24" cy="46" r="5" fill="url(#chartGrad)" />
+    </svg>
+  )
+}
+
 function sentimentLabel(score) {
   if (score == null) return { text: '—', className: 'sentiment-neutral' }
   if (score > 0.2) return { text: 'Positiva', className: 'sentiment-positive' }
@@ -329,7 +360,10 @@ function App() {
 
   return (
     <div className="dashboard">
-      <h1>StockInsight</h1>
+      <div className="brand">
+        <Logo />
+        <h1>StockInsight</h1>
+      </div>
 
       <form onSubmit={handleAddSymbol} className="add-symbol-form">
         <input
