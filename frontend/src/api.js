@@ -31,6 +31,12 @@ export async function removeSymbol(ticker) {
   if (!res.ok) throw new Error('No se pudo quitar el símbolo')
 }
 
+export async function fetchInsights(ticker) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/insights`)
+  if (!res.ok) throw new Error('No se pudo obtener el análisis')
+  return res.json()
+}
+
 export async function fetchNews(ticker) {
   const res = await fetch(`${API_URL}/symbols/${ticker}/news`)
   if (!res.ok) throw new Error('No se pudo obtener las noticias')

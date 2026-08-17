@@ -10,9 +10,12 @@ from sqlalchemy.orm import Session
 from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.schemas.symbol import NewsItemOut, PricePointOut, SymbolCreate, SymbolOut
+from app.schemas.symbol import InsightsOut, NewsItemOut, PricePointOut, SymbolCreate, SymbolOut
+from app.services.analyst_service import fetch_analyst_rating
 from app.services.news_service import fetch_news
 from app.services.price_service import fetch_current_price
+from app.services.projection_service import project_target_prices
+from app.services.sentiment_aggregation import aggregate_sentiment
 from app.services.sentiment_service import score_sentiment
 
 Base.metadata.create_all(bind=engine)
@@ -168,6 +171,44 @@ def remove_symbol(ticker: str, db: Session = Depends(get_db)):
 
     db.delete(symbol)
     db.commit()
+
+
+@app.get("/symbols/{ticker}/insights", response_model=InsightsOut)
+def get_insights(ticker: str, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    latest_point = (
+        db.query(models.PricePoint)
+        .filter_by(symbol_id=symbol.id)
+        .order_by(desc(models.PricePoint.fetched_at))
+        .first()
+    )
+    if latest_point:
+        current_price = latest_point.price
+    else:
+        current_price = fetch_current_price(symbol.ticker)
+
+    sentiment = aggregate_sentiment(db, symbol.id)
+
+    try:
+        analyst = fetch_analyst_rating(symbol.ticker)
+    except Exception:
+        analyst = {"rating": "No data", "counts": None}
+
+    targets = project_target_prices(db, symbol.id, current_price, sentiment["medium_term"])
+
+    return InsightsOut(
+        sentiment_short_term=sentiment["short_term"],
+        sentiment_medium_term=sentiment["medium_term"],
+        sentiment_long_term=sentiment["long_term"],
+        analyst_rating=analyst["rating"],
+        analyst_counts=analyst["counts"],
+        target_price_1w=targets["target_price_1w"],
+        target_price_1m=targets["target_price_1m"],
+        target_price_1y=targets["target_price_1y"],
+    )
 
 
 @app.get("/symbols/{ticker}/news", response_model=list[NewsItemOut])

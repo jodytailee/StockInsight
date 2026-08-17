@@ -1,20 +1,42 @@
 import { useEffect, useState } from 'react'
-import { addSymbol, connectPriceSocket, fetchNews, fetchPrice, fetchSymbols, removeSymbol } from './api'
+import {
+  addSymbol,
+  connectPriceSocket,
+  fetchInsights,
+  fetchNews,
+  fetchPrice,
+  fetchSymbols,
+  removeSymbol,
+} from './api'
 import './App.css'
 
 function sentimentLabel(score) {
+  if (score == null) return { text: '—', className: 'sentiment-neutral' }
   if (score > 0.2) return { text: 'Positiva', className: 'sentiment-positive' }
   if (score < -0.2) return { text: 'Negativa', className: 'sentiment-negative' }
   return { text: 'Neutral', className: 'sentiment-neutral' }
+}
+
+function ratingClassName(rating) {
+  if (rating === 'Strong Buy' || rating === 'Buy') return 'rating-buy'
+  if (rating === 'Strong Sell' || rating === 'Sell') return 'rating-sell'
+  return 'rating-neutral'
 }
 
 function App() {
   const [symbols, setSymbols] = useState([])
   const [prices, setPrices] = useState({})
   const [news, setNews] = useState({})
+  const [insights, setInsights] = useState({})
   const [tickerInput, setTickerInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  function loadInsights(ticker) {
+    fetchInsights(ticker)
+      .then((data) => setInsights((prev) => ({ ...prev, [ticker]: data })))
+      .catch(() => {})
+  }
 
   useEffect(() => {
     fetchSymbols()
@@ -27,6 +49,7 @@ function App() {
           fetchNews(s.ticker)
             .then((items) => setNews((prev) => ({ ...prev, [s.ticker]: items })))
             .catch(() => {})
+          loadInsights(s.ticker)
         })
       })
       .catch((e) => setError(e.message))
@@ -38,11 +61,13 @@ function App() {
           if (existing.some((n) => n.url === msg.url)) return prev
           return { ...prev, [msg.ticker]: [msg, ...existing].slice(0, 20) }
         })
+        loadInsights(msg.ticker)
       } else {
         setPrices((prev) => ({
           ...prev,
           [msg.ticker]: { price: msg.price, fetched_at: msg.fetched_at },
         }))
+        loadInsights(msg.ticker)
       }
     })
     return () => socket.close()
@@ -57,6 +82,10 @@ function App() {
         return rest
       })
       setNews((prev) => {
+        const { [ticker]: _removed, ...rest } = prev
+        return rest
+      })
+      setInsights((prev) => {
         const { [ticker]: _removed, ...rest } = prev
         return rest
       })
@@ -81,6 +110,7 @@ function App() {
       setPrices((prev) => ({ ...prev, [symbol.ticker]: price }))
       const items = await fetchNews(symbol.ticker)
       setNews((prev) => ({ ...prev, [symbol.ticker]: items }))
+      loadInsights(symbol.ticker)
       setTickerInput('')
     } catch (err) {
       setError(err.message)
@@ -107,34 +137,64 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      <table className="symbol-table">
-        <thead>
-          <tr>
-            <th>Símbolo</th>
-            <th>Precio</th>
-            <th>Actualizado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {symbols.map((s) => (
-            <tr key={s.ticker}>
-              <td>{s.ticker}</td>
-              <td>{prices[s.ticker] ? `$${prices[s.ticker].price.toFixed(2)}` : '—'}</td>
-              <td>
-                {prices[s.ticker]
-                  ? new Date(prices[s.ticker].fetched_at).toLocaleTimeString()
-                  : '—'}
-              </td>
-              <td>
-                <button type="button" className="remove-btn" onClick={() => handleRemoveSymbol(s.ticker)}>
-                  Quitar
-                </button>
-              </td>
+      <p className="muted preliminary-note">
+        Los precios objetivo (1sem/1mes/1año) son una <strong>estimación preliminar</strong>{' '}
+        basada en tendencia reciente + sentimiento de noticias — todavía no es el modelo de
+        Machine Learning planeado, que requiere más histórico propio para entrenarse.
+      </p>
+
+      <div className="table-scroll">
+        <table className="symbol-table">
+          <thead>
+            <tr>
+              <th>Símbolo</th>
+              <th>Precio</th>
+              <th>Actualizado</th>
+              <th>Sentimiento corto</th>
+              <th>Sentimiento medio</th>
+              <th>Sentimiento largo</th>
+              <th>Analistas</th>
+              <th>Target 1sem</th>
+              <th>Target 1mes</th>
+              <th>Target 1año</th>
+              <th></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {symbols.map((s) => {
+              const insight = insights[s.ticker]
+              const shortS = sentimentLabel(insight?.sentiment_short_term)
+              const medS = sentimentLabel(insight?.sentiment_medium_term)
+              const longS = sentimentLabel(insight?.sentiment_long_term)
+              return (
+                <tr key={s.ticker}>
+                  <td>{s.ticker}</td>
+                  <td>{prices[s.ticker] ? `$${prices[s.ticker].price.toFixed(2)}` : '—'}</td>
+                  <td>
+                    {prices[s.ticker]
+                      ? new Date(prices[s.ticker].fetched_at).toLocaleTimeString()
+                      : '—'}
+                  </td>
+                  <td className={shortS.className}>{shortS.text}</td>
+                  <td className={medS.className}>{medS.text}</td>
+                  <td className={longS.className}>{longS.text}</td>
+                  <td className={insight ? ratingClassName(insight.analyst_rating) : ''}>
+                    {insight?.analyst_rating ?? '—'}
+                  </td>
+                  <td>{insight ? `$${insight.target_price_1w.toFixed(2)}` : '—'}</td>
+                  <td>{insight ? `$${insight.target_price_1m.toFixed(2)}` : '—'}</td>
+                  <td>{insight ? `$${insight.target_price_1y.toFixed(2)}` : '—'}</td>
+                  <td>
+                    <button type="button" className="remove-btn" onClick={() => handleRemoveSymbol(s.ticker)}>
+                      Quitar
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {symbols.map((s) => (
         <section key={s.ticker} className="news-section">
