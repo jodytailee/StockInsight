@@ -373,6 +373,7 @@ function App() {
             <tr>
               <th>Símbolo</th>
               <th>Precio</th>
+              <th>Precio promedio</th>
               <th>Actualizado</th>
               <th>Sentimiento corto</th>
               <th>Sentimiento medio</th>
@@ -396,6 +397,7 @@ function App() {
                 <tr key={s.ticker}>
                   <td>{s.ticker}</td>
                   <td>{prices[s.ticker] ? `$${prices[s.ticker].price.toFixed(2)}` : '—'}</td>
+                  <td>{insight?.avg_cost != null ? `$${insight.avg_cost.toFixed(2)}` : '—'}</td>
                   <td>
                     {prices[s.ticker]
                       ? new Date(prices[s.ticker].fetched_at).toLocaleTimeString()
