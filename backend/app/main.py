@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -10,10 +11,20 @@ from sqlalchemy.orm import Session
 from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.schemas.symbol import InsightsOut, NewsItemOut, PricePointOut, SymbolCreate, SymbolOut, SymbolPositionUpdate
+from app.schemas.symbol import (
+    InsightsOut,
+    NewsItemOut,
+    PositionLotCreate,
+    PositionLotOut,
+    PricePointOut,
+    SymbolCreate,
+    SymbolOut,
+    SymbolPositionUpdate,
+)
 from app.ml.predict import predict_direction
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.news_service import fetch_news
+from app.services.position_service import refresh_symbol_position
 from app.services.price_service import fetch_current_price
 from app.services.projection_service import project_target_prices
 from app.services.recommendation_service import generate_recommendations
@@ -211,6 +222,68 @@ def remove_symbol(ticker: str, db: Session = Depends(get_db)):
 
     db.delete(symbol)
     db.commit()
+
+
+@app.get("/symbols/{ticker}/lots", response_model=list[PositionLotOut])
+def list_lots(ticker: str, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    return (
+        db.query(models.PositionLot)
+        .filter_by(symbol_id=symbol.id)
+        .order_by(models.PositionLot.purchased_at)
+        .all()
+    )
+
+
+@app.post("/symbols/{ticker}/lots", response_model=PositionLotOut)
+def add_lot(ticker: str, payload: PositionLotCreate, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    # Si el símbolo tenía una posición cargada a la antigua (un solo valor,
+    # sin lotes todavía), la migramos a un lote implícito para no perderla.
+    has_lots = db.query(models.PositionLot).filter_by(symbol_id=symbol.id).first() is not None
+    if not has_lots and symbol.quantity and symbol.avg_cost:
+        db.add(
+            models.PositionLot(
+                symbol_id=symbol.id,
+                quantity=symbol.quantity,
+                price=symbol.avg_cost,
+                purchased_at=symbol.created_at,
+            )
+        )
+
+    lot = models.PositionLot(
+        symbol_id=symbol.id,
+        quantity=payload.quantity,
+        price=payload.price,
+        purchased_at=payload.purchased_at or datetime.now(timezone.utc),
+    )
+    db.add(lot)
+    db.commit()
+    db.refresh(lot)
+
+    refresh_symbol_position(db, symbol)
+    return lot
+
+
+@app.delete("/symbols/{ticker}/lots/{lot_id}", status_code=204)
+def remove_lot(ticker: str, lot_id: int, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    lot = db.query(models.PositionLot).filter_by(id=lot_id, symbol_id=symbol.id).first()
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+
+    db.delete(lot)
+    db.commit()
+    refresh_symbol_position(db, symbol)
 
 
 @app.get("/symbols/{ticker}/insights", response_model=InsightsOut)

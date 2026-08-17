@@ -20,14 +20,28 @@ export async function addSymbol(ticker, quantity, avgCost) {
   return res.json()
 }
 
-export async function updatePosition(ticker, quantity, avgCost) {
-  const res = await fetch(`${API_URL}/symbols/${ticker}/position`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quantity, avg_cost: avgCost }),
-  })
-  if (!res.ok) throw new Error('No se pudo actualizar la posición')
+export async function fetchLots(ticker) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/lots`)
+  if (!res.ok) throw new Error('No se pudieron cargar los lotes')
   return res.json()
+}
+
+export async function addLot(ticker, quantity, price, purchasedAt) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/lots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity, price, purchased_at: purchasedAt || null }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'No se pudo agregar el lote')
+  }
+  return res.json()
+}
+
+export async function removeLot(ticker, lotId) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/lots/${lotId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('No se pudo quitar el lote')
 }
 
 export async function fetchPrice(ticker) {

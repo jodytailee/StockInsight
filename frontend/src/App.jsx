@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import {
+  addLot,
   addSymbol,
   connectPriceSocket,
   fetchInsights,
+  fetchLots,
   fetchNews,
   fetchPrice,
   fetchSymbols,
+  removeLot,
   removeSymbol,
-  updatePosition,
 } from './api'
 import './App.css'
 
@@ -54,59 +56,109 @@ function RecommendationCard({ label, rec }) {
   )
 }
 
-function PositionSection({ ticker, insight, onUpdate }) {
-  const [editing, setEditing] = useState(false)
+function PositionSection({ ticker, insight, onLotsChanged }) {
+  const [lots, setLots] = useState([])
+  const [showForm, setShowForm] = useState(false)
   const [quantity, setQuantity] = useState('')
-  const [avgCost, setAvgCost] = useState('')
+  const [price, setPrice] = useState('')
+  const [purchasedAt, setPurchasedAt] = useState('')
+  const [error, setError] = useState('')
 
-  function startEdit() {
-    setQuantity(insight?.quantity ?? '')
-    setAvgCost(insight?.avg_cost ?? '')
-    setEditing(true)
+  function loadLots() {
+    fetchLots(ticker)
+      .then(setLots)
+      .catch(() => {})
   }
 
-  async function save(e) {
+  useEffect(() => {
+    loadLots()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker])
+
+  async function handleAddLot(e) {
     e.preventDefault()
-    await onUpdate(ticker, quantity === '' ? null : Number(quantity), avgCost === '' ? null : Number(avgCost))
-    setEditing(false)
+    setError('')
+    try {
+      await addLot(ticker, Number(quantity), Number(price), purchasedAt || null)
+      setQuantity('')
+      setPrice('')
+      setPurchasedAt('')
+      setShowForm(false)
+      loadLots()
+      onLotsChanged(ticker)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleRemoveLot(lotId) {
+    try {
+      await removeLot(ticker, lotId)
+      loadLots()
+      onLotsChanged(ticker)
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const hasPosition = insight?.quantity != null && insight?.avg_cost != null
 
   return (
     <div className="position-box">
-      {editing ? (
-        <form onSubmit={save} className="position-form">
+      <div className="position-summary">
+        {hasPosition ? (
+          <>
+            <span>
+              {insight.quantity} acciones @ ${insight.avg_cost.toFixed(2)} promedio
+            </span>
+            {insight.unrealized_pnl_pct != null && (
+              <span className={insight.unrealized_pnl_pct >= 0 ? 'sentiment-positive' : 'sentiment-negative'}>
+                {insight.unrealized_pnl_pct >= 0 ? '+' : ''}{insight.unrealized_pnl_pct}% no realizado
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="muted">Sin posición registrada</span>
+        )}
+        <button type="button" onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Cancelar' : 'Agregar lote de compra'}
+        </button>
+      </div>
+
+      {lots.length > 0 && (
+        <ul className="lots-list">
+          {lots.map((lot) => (
+            <li key={lot.id}>
+              <span>
+                {lot.quantity} @ ${lot.price.toFixed(2)} — {new Date(lot.purchased_at).toLocaleDateString()}
+              </span>
+              <button type="button" className="remove-btn small" onClick={() => handleRemoveLot(lot.id)}>
+                Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleAddLot} className="position-form">
           <label>
             Cantidad
-            <input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+            <input type="number" step="any" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
           </label>
           <label>
-            Precio promedio
-            <input type="number" step="any" value={avgCost} onChange={(e) => setAvgCost(e.target.value)} />
+            Precio de compra
+            <input type="number" step="any" required value={price} onChange={(e) => setPrice(e.target.value)} />
           </label>
-          <button type="submit">Guardar</button>
-          <button type="button" onClick={() => setEditing(false)}>Cancelar</button>
+          <label>
+            Fecha (opcional)
+            <input type="date" value={purchasedAt} onChange={(e) => setPurchasedAt(e.target.value)} />
+          </label>
+          <button type="submit">Guardar lote</button>
         </form>
-      ) : (
-        <div className="position-summary">
-          {hasPosition ? (
-            <>
-              <span>
-                {insight.quantity} acciones @ ${insight.avg_cost.toFixed(2)}
-              </span>
-              {insight.unrealized_pnl_pct != null && (
-                <span className={insight.unrealized_pnl_pct >= 0 ? 'sentiment-positive' : 'sentiment-negative'}>
-                  {insight.unrealized_pnl_pct >= 0 ? '+' : ''}{insight.unrealized_pnl_pct}% no realizado
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="muted">Sin posición registrada</span>
-          )}
-          <button type="button" onClick={startEdit}>Editar posición</button>
-        </div>
       )}
+
+      {error && <p className="error">{error}</p>}
 
       {insight && (
         <div className="rec-cards">
@@ -192,13 +244,8 @@ function App() {
     }
   }
 
-  async function handleUpdatePosition(ticker, quantity, avgCost) {
-    try {
-      await updatePosition(ticker, quantity, avgCost)
-      loadInsights(ticker)
-    } catch (err) {
-      setError(err.message)
-    }
+  function handleLotsChanged(ticker) {
+    loadInsights(ticker)
   }
 
   async function handleAddSymbol(e) {
@@ -330,7 +377,7 @@ function App() {
       {symbols.map((s) => (
         <section key={s.ticker} className="symbol-detail">
           <h2>{s.ticker}</h2>
-          <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onUpdate={handleUpdatePosition} />
+          <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onLotsChanged={handleLotsChanged} />
 
           <h3>Noticias</h3>
           {(news[s.ticker] || []).length === 0 && <p className="muted">Sin noticias todavía.</p>}

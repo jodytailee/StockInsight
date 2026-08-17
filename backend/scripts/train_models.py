@@ -21,6 +21,7 @@ import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import TimeSeriesSplit
 
 from app import models
 from app.database import SessionLocal
@@ -29,6 +30,11 @@ from app.ml.features import FEATURE_COLUMNS, build_features, build_labels
 ARTIFACTS_DIR = Path(__file__).resolve().parent.parent / "app" / "ml" / "artifacts"
 HORIZONS = {"1d": 1, "1w": 5}  # días hábiles
 MIN_SAMPLES = 100
+PARAM_GRID = [
+    {"n_estimators": 200, "max_depth": 4},
+    {"n_estimators": 300, "max_depth": 6},
+    {"n_estimators": 200, "max_depth": None},
+]
 
 
 def load_daily_prices(db, symbol_id: int) -> pd.DataFrame:
@@ -52,16 +58,28 @@ def train_one(ticker: str, horizon_key: str, horizon_days: int, df: pd.DataFrame
         print(f"{ticker} [{horizon_key}]: solo {len(data)} muestras utilizables, se necesitan {MIN_SAMPLES}+. Se omite.")
         return None
 
-    split = int(len(data) * 0.8)
-    train, test = data.iloc[:split], data.iloc[split:]
+    X, y = data[FEATURE_COLUMNS], data["label"]
 
-    model = RandomForestClassifier(n_estimators=200, max_depth=5, random_state=42)
-    model.fit(train[FEATURE_COLUMNS], train["label"])
+    # Búsqueda de hiperparámetros con validación cruzada respetando el orden
+    # temporal (nunca se entrena con datos "futuros" respecto al fold de test).
+    tscv = TimeSeriesSplit(n_splits=5)
+    best_score, best_params = -1.0, PARAM_GRID[0]
+    for params in PARAM_GRID:
+        fold_scores = []
+        for train_idx, test_idx in tscv.split(X):
+            model = RandomForestClassifier(random_state=42, class_weight="balanced", **params)
+            model.fit(X.iloc[train_idx], y.iloc[train_idx])
+            preds = model.predict(X.iloc[test_idx])
+            fold_scores.append(accuracy_score(y.iloc[test_idx], preds))
+        mean_score = sum(fold_scores) / len(fold_scores)
+        if mean_score > best_score:
+            best_score, best_params = mean_score, params
 
-    accuracy = None
-    if len(test) > 0:
-        preds = model.predict(test[FEATURE_COLUMNS])
-        accuracy = float(accuracy_score(test["label"], preds))
+    # Modelo final: mismos hiperparámetros ganadores, reentrenado con TODOS
+    # los datos disponibles (más datos = mejor modelo para producción).
+    model = RandomForestClassifier(random_state=42, class_weight="balanced", **best_params)
+    model.fit(X, y)
+    accuracy = float(best_score)
 
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     artifact_path = ARTIFACTS_DIR / f"{ticker}_{horizon_key}.joblib"
@@ -77,7 +95,7 @@ def train_one(ticker: str, horizon_key: str, horizon_days: int, df: pd.DataFrame
         },
         artifact_path,
     )
-    print(f"{ticker} [{horizon_key}]: entrenado con {len(data)} muestras, accuracy test={accuracy}")
+    print(f"{ticker} [{horizon_key}]: entrenado con {len(data)} muestras, accuracy CV={accuracy:.3f}, params={best_params}")
     return {"ticker": ticker, "horizon": horizon_key, "accuracy": accuracy}
 
 

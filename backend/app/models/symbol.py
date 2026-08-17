@@ -18,6 +18,7 @@ class Symbol(Base):
     prices: Mapped[list["PricePoint"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
     news: Mapped[list["NewsItem"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
     daily_prices: Mapped[list["DailyPrice"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
+    lots: Mapped[list["PositionLot"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
 
 
 class PricePoint(Base):
@@ -64,3 +65,18 @@ class DailyPrice(Base):
     volume: Mapped[float] = mapped_column(Float)
 
     symbol: Mapped["Symbol"] = relationship(back_populates="daily_prices")
+
+
+class PositionLot(Base):
+    """Un lote de compra individual — el usuario puede tener varios por símbolo.
+    quantity/avg_cost en Symbol son un agregado cacheado, calculado a partir de estos."""
+
+    __tablename__ = "position_lots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id"))
+    quantity: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    purchased_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    symbol: Mapped["Symbol"] = relationship(back_populates="lots")

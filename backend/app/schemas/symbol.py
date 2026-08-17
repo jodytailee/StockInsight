@@ -14,6 +14,21 @@ class SymbolPositionUpdate(BaseModel):
     avg_cost: float | None = None
 
 
+class PositionLotCreate(BaseModel):
+    quantity: float
+    price: float
+    purchased_at: datetime | None = None
+
+
+class PositionLotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    quantity: float
+    price: float
+    purchased_at: datetime
+
+
 class SymbolOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
