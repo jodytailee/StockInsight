@@ -39,6 +39,16 @@ export async function addLot(ticker, quantity, price, purchasedAt) {
   return res.json()
 }
 
+export async function updateLot(ticker, lotId, quantity, price, purchasedAt) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/lots/${lotId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity, price, purchased_at: purchasedAt || null }),
+  })
+  if (!res.ok) throw new Error('No se pudo editar el lote')
+  return res.json()
+}
+
 export async function removeLot(ticker, lotId) {
   const res = await fetch(`${API_URL}/symbols/${ticker}/lots/${lotId}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('No se pudo quitar el lote')

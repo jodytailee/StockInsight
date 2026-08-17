@@ -10,6 +10,7 @@ import {
   fetchSymbols,
   removeLot,
   removeSymbol,
+  updateLot,
 } from './api'
 import './App.css'
 
@@ -56,6 +57,67 @@ function RecommendationCard({ label, rec }) {
   )
 }
 
+function toDateInputValue(isoString) {
+  return new Date(isoString).toISOString().slice(0, 10)
+}
+
+function LotRow({ ticker, lot, onChanged, onError }) {
+  const [editing, setEditing] = useState(false)
+  const [quantity, setQuantity] = useState(lot.quantity)
+  const [price, setPrice] = useState(lot.price)
+  const [purchasedAt, setPurchasedAt] = useState(toDateInputValue(lot.purchased_at))
+
+  async function save(e) {
+    e.preventDefault()
+    try {
+      await updateLot(ticker, lot.id, Number(quantity), Number(price), purchasedAt || null)
+      setEditing(false)
+      onChanged()
+    } catch (err) {
+      onError(err.message)
+    }
+  }
+
+  async function handleRemove() {
+    try {
+      await removeLot(ticker, lot.id)
+      onChanged()
+    } catch (err) {
+      onError(err.message)
+    }
+  }
+
+  if (editing) {
+    return (
+      <li>
+        <form onSubmit={save} className="lot-edit-form">
+          <input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <input type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input type="date" value={purchasedAt} onChange={(e) => setPurchasedAt(e.target.value)} />
+          <button type="submit">Guardar</button>
+          <button type="button" onClick={() => setEditing(false)}>Cancelar</button>
+        </form>
+      </li>
+    )
+  }
+
+  return (
+    <li>
+      <span>
+        {lot.quantity} @ ${lot.price.toFixed(2)} — {new Date(lot.purchased_at).toLocaleDateString()}
+      </span>
+      <span className="lot-actions">
+        <button type="button" className="remove-btn small" onClick={() => setEditing(true)}>
+          Editar
+        </button>
+        <button type="button" className="remove-btn small" onClick={handleRemove}>
+          Quitar
+        </button>
+      </span>
+    </li>
+  )
+}
+
 function PositionSection({ ticker, insight, onLotsChanged }) {
   const [lots, setLots] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -91,14 +153,9 @@ function PositionSection({ ticker, insight, onLotsChanged }) {
     }
   }
 
-  async function handleRemoveLot(lotId) {
-    try {
-      await removeLot(ticker, lotId)
-      loadLots()
-      onLotsChanged(ticker)
-    } catch (err) {
-      setError(err.message)
-    }
+  function handleLotChanged() {
+    loadLots()
+    onLotsChanged(ticker)
   }
 
   const hasPosition = insight?.quantity != null && insight?.avg_cost != null
@@ -128,14 +185,7 @@ function PositionSection({ ticker, insight, onLotsChanged }) {
       {lots.length > 0 && (
         <ul className="lots-list">
           {lots.map((lot) => (
-            <li key={lot.id}>
-              <span>
-                {lot.quantity} @ ${lot.price.toFixed(2)} — {new Date(lot.purchased_at).toLocaleDateString()}
-              </span>
-              <button type="button" className="remove-btn small" onClick={() => handleRemoveLot(lot.id)}>
-                Quitar
-              </button>
-            </li>
+            <LotRow key={lot.id} ticker={ticker} lot={lot} onChanged={handleLotChanged} onError={setError} />
           ))}
         </ul>
       )}

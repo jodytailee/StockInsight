@@ -16,6 +16,7 @@ from app.schemas.symbol import (
     NewsItemOut,
     PositionLotCreate,
     PositionLotOut,
+    PositionLotUpdate,
     PricePointOut,
     SymbolCreate,
     SymbolOut,
@@ -264,6 +265,29 @@ def add_lot(ticker: str, payload: PositionLotCreate, db: Session = Depends(get_d
         purchased_at=payload.purchased_at or datetime.now(timezone.utc),
     )
     db.add(lot)
+    db.commit()
+    db.refresh(lot)
+
+    refresh_symbol_position(db, symbol)
+    return lot
+
+
+@app.patch("/symbols/{ticker}/lots/{lot_id}", response_model=PositionLotOut)
+def update_lot(ticker: str, lot_id: int, payload: PositionLotUpdate, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    lot = db.query(models.PositionLot).filter_by(id=lot_id, symbol_id=symbol.id).first()
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+
+    if payload.quantity is not None:
+        lot.quantity = payload.quantity
+    if payload.price is not None:
+        lot.price = payload.price
+    if payload.purchased_at is not None:
+        lot.purchased_at = payload.purchased_at
     db.commit()
     db.refresh(lot)
 

@@ -20,6 +20,12 @@ class PositionLotCreate(BaseModel):
     purchased_at: datetime | None = None
 
 
+class PositionLotUpdate(BaseModel):
+    quantity: float | None = None
+    price: float | None = None
+    purchased_at: datetime | None = None
+
+
 class PositionLotOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
