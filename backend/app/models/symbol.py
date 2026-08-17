@@ -12,6 +12,8 @@ class Symbol(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticker: Mapped[str] = mapped_column(String(10), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     prices: Mapped[list["PricePoint"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
     news: Mapped[list["NewsItem"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")

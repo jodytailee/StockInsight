@@ -3,23 +3,41 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import desc
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import desc, inspect, text
+from sqlalchemy.exc import IntegrityError, NoSuchTableError
 from sqlalchemy.orm import Session
 
 from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
-from app.schemas.symbol import InsightsOut, NewsItemOut, PricePointOut, SymbolCreate, SymbolOut
+from app.schemas.symbol import InsightsOut, NewsItemOut, PricePointOut, SymbolCreate, SymbolOut, SymbolPositionUpdate
 from app.ml.predict import predict_direction
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.news_service import fetch_news
 from app.services.price_service import fetch_current_price
 from app.services.projection_service import project_target_prices
+from app.services.recommendation_service import generate_recommendations
 from app.services.sentiment_aggregation import aggregate_sentiment
 from app.services.sentiment_service import score_sentiment
 
+
+def _ensure_symbol_columns():
+    """Migración liviana ad-hoc: agrega columnas nuevas a `symbols` si la
+    tabla ya existía de antes (create_all no altera tablas existentes)."""
+    try:
+        columns = {c["name"] for c in inspect(engine).get_columns("symbols")}
+    except NoSuchTableError:
+        return
+
+    with engine.begin() as conn:
+        if "quantity" not in columns:
+            conn.execute(text("ALTER TABLE symbols ADD COLUMN quantity FLOAT"))
+        if "avg_cost" not in columns:
+            conn.execute(text("ALTER TABLE symbols ADD COLUMN avg_cost FLOAT"))
+
+
 Base.metadata.create_all(bind=engine)
+_ensure_symbol_columns()
 
 PRICE_POLL_INTERVAL_MINUTES = 5
 NEWS_POLL_INTERVAL_MINUTES = 10
@@ -127,6 +145,12 @@ def add_symbol(payload: SymbolCreate, db: Session = Depends(get_db)):
     ticker = payload.ticker.upper()
     existing = db.query(models.Symbol).filter_by(ticker=ticker).first()
     if existing:
+        if payload.quantity is not None:
+            existing.quantity = payload.quantity
+        if payload.avg_cost is not None:
+            existing.avg_cost = payload.avg_cost
+        db.commit()
+        db.refresh(existing)
         return existing
 
     try:
@@ -134,8 +158,23 @@ def add_symbol(payload: SymbolCreate, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    symbol = models.Symbol(ticker=ticker)
+    symbol = models.Symbol(ticker=ticker, quantity=payload.quantity, avg_cost=payload.avg_cost)
     db.add(symbol)
+    db.commit()
+    db.refresh(symbol)
+    return symbol
+
+
+@app.patch("/symbols/{ticker}/position", response_model=SymbolOut)
+def update_position(ticker: str, payload: SymbolPositionUpdate, db: Session = Depends(get_db)):
+    symbol = db.query(models.Symbol).filter_by(ticker=ticker.upper()).first()
+    if not symbol:
+        raise HTTPException(status_code=404, detail="Symbol not tracked")
+
+    if payload.quantity is not None:
+        symbol.quantity = payload.quantity
+    if payload.avg_cost is not None:
+        symbol.avg_cost = payload.avg_cost
     db.commit()
     db.refresh(symbol)
     return symbol
@@ -199,6 +238,11 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
         analyst = {"rating": "No data", "counts": None}
 
     targets = project_target_prices(db, symbol.id, current_price, sentiment["medium_term"])
+    recommendations = generate_recommendations(current_price, symbol.quantity, targets)
+
+    unrealized_pnl_pct = None
+    if symbol.avg_cost:
+        unrealized_pnl_pct = round((current_price - symbol.avg_cost) / symbol.avg_cost * 100, 2)
 
     ml_1d = predict_direction(db, symbol.id, symbol.ticker, "1d", current_price)
     ml_1w = predict_direction(db, symbol.id, symbol.ticker, "1w", current_price)
@@ -214,6 +258,12 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
         target_price_1y=targets["target_price_1y"],
         ml_direction_1d=ml_1d,
         ml_direction_1w=ml_1w,
+        quantity=symbol.quantity,
+        avg_cost=symbol.avg_cost,
+        unrealized_pnl_pct=unrealized_pnl_pct,
+        recommendation_1w=recommendations["1w"],
+        recommendation_1m=recommendations["1m"],
+        recommendation_1y=recommendations["1y"],
     )
 
 

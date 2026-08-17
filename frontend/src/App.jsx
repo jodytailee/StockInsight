@@ -7,6 +7,7 @@ import {
   fetchPrice,
   fetchSymbols,
   removeSymbol,
+  updatePosition,
 } from './api'
 import './App.css'
 
@@ -23,6 +24,12 @@ function ratingClassName(rating) {
   return 'rating-neutral'
 }
 
+function recommendationClassName(action) {
+  if (action === 'Comprar' || action === 'Comprar más') return 'rating-buy'
+  if (action === 'Vender' || action === 'Evitar') return 'rating-sell'
+  return 'rating-neutral'
+}
+
 function MlCell({ ml }) {
   if (!ml) return <td className="muted">Sin modelo</td>
   const pct = Math.round(ml.probability_up * 100)
@@ -36,12 +43,90 @@ function MlCell({ ml }) {
   )
 }
 
+function RecommendationCard({ label, rec }) {
+  if (!rec) return null
+  return (
+    <div className={`rec-card ${recommendationClassName(rec.action)}`}>
+      <div className="rec-label">{label}</div>
+      <div className="rec-action">{rec.action}</div>
+      <div className="rec-return">{rec.expected_return_pct >= 0 ? '+' : ''}{rec.expected_return_pct}%</div>
+    </div>
+  )
+}
+
+function PositionSection({ ticker, insight, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const [quantity, setQuantity] = useState('')
+  const [avgCost, setAvgCost] = useState('')
+
+  function startEdit() {
+    setQuantity(insight?.quantity ?? '')
+    setAvgCost(insight?.avg_cost ?? '')
+    setEditing(true)
+  }
+
+  async function save(e) {
+    e.preventDefault()
+    await onUpdate(ticker, quantity === '' ? null : Number(quantity), avgCost === '' ? null : Number(avgCost))
+    setEditing(false)
+  }
+
+  const hasPosition = insight?.quantity != null && insight?.avg_cost != null
+
+  return (
+    <div className="position-box">
+      {editing ? (
+        <form onSubmit={save} className="position-form">
+          <label>
+            Cantidad
+            <input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </label>
+          <label>
+            Precio promedio
+            <input type="number" step="any" value={avgCost} onChange={(e) => setAvgCost(e.target.value)} />
+          </label>
+          <button type="submit">Guardar</button>
+          <button type="button" onClick={() => setEditing(false)}>Cancelar</button>
+        </form>
+      ) : (
+        <div className="position-summary">
+          {hasPosition ? (
+            <>
+              <span>
+                {insight.quantity} acciones @ ${insight.avg_cost.toFixed(2)}
+              </span>
+              {insight.unrealized_pnl_pct != null && (
+                <span className={insight.unrealized_pnl_pct >= 0 ? 'sentiment-positive' : 'sentiment-negative'}>
+                  {insight.unrealized_pnl_pct >= 0 ? '+' : ''}{insight.unrealized_pnl_pct}% no realizado
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="muted">Sin posición registrada</span>
+          )}
+          <button type="button" onClick={startEdit}>Editar posición</button>
+        </div>
+      )}
+
+      {insight && (
+        <div className="rec-cards">
+          <RecommendationCard label="1 semana" rec={insight.recommendation_1w} />
+          <RecommendationCard label="1 mes" rec={insight.recommendation_1m} />
+          <RecommendationCard label="1 año" rec={insight.recommendation_1y} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [symbols, setSymbols] = useState([])
   const [prices, setPrices] = useState({})
   const [news, setNews] = useState({})
   const [insights, setInsights] = useState({})
   const [tickerInput, setTickerInput] = useState('')
+  const [quantityInput, setQuantityInput] = useState('')
+  const [avgCostInput, setAvgCostInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -107,6 +192,15 @@ function App() {
     }
   }
 
+  async function handleUpdatePosition(ticker, quantity, avgCost) {
+    try {
+      await updatePosition(ticker, quantity, avgCost)
+      loadInsights(ticker)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   async function handleAddSymbol(e) {
     e.preventDefault()
     const ticker = tickerInput.trim().toUpperCase()
@@ -115,7 +209,9 @@ function App() {
     setLoading(true)
     setError('')
     try {
-      const symbol = await addSymbol(ticker)
+      const quantity = quantityInput === '' ? null : Number(quantityInput)
+      const avgCost = avgCostInput === '' ? null : Number(avgCostInput)
+      const symbol = await addSymbol(ticker, quantity, avgCost)
       setSymbols((prev) =>
         prev.some((s) => s.ticker === symbol.ticker) ? prev : [...prev, symbol]
       )
@@ -125,6 +221,8 @@ function App() {
       setNews((prev) => ({ ...prev, [symbol.ticker]: items }))
       loadInsights(symbol.ticker)
       setTickerInput('')
+      setQuantityInput('')
+      setAvgCostInput('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -143,6 +241,20 @@ function App() {
           value={tickerInput}
           onChange={(e) => setTickerInput(e.target.value)}
         />
+        <input
+          type="number"
+          step="any"
+          placeholder="Cantidad (opcional)"
+          value={quantityInput}
+          onChange={(e) => setQuantityInput(e.target.value)}
+        />
+        <input
+          type="number"
+          step="any"
+          placeholder="Precio promedio (opcional)"
+          value={avgCostInput}
+          onChange={(e) => setAvgCostInput(e.target.value)}
+        />
         <button type="submit" disabled={loading}>
           {loading ? 'Agregando...' : 'Agregar símbolo'}
         </button>
@@ -151,10 +263,11 @@ function App() {
       {error && <p className="error">{error}</p>}
 
       <p className="muted preliminary-note">
-        Los precios objetivo (1sem/1mes/1año) son una <strong>estimación preliminar</strong>{' '}
-        basada en tendencia reciente + sentimiento de noticias, no el modelo ML. Las columnas
-        "ML" sí son un modelo entrenado (Random Forest sobre indicadores técnicos), pero con
-        pocos datos todavía — el accuracy histórico mostrado es bajo, tómalo como experimental.
+        Los precios objetivo y las recomendaciones (1sem/1mes/1año) son una{' '}
+        <strong>estimación preliminar</strong> basada en tendencia reciente + sentimiento de
+        noticias, no el modelo ML. Las columnas "ML" sí son un modelo entrenado (Random Forest
+        sobre indicadores técnicos), pero con pocos datos todavía — el accuracy histórico
+        mostrado es bajo, tómalo como experimental.
       </p>
 
       <div className="table-scroll">
@@ -215,8 +328,11 @@ function App() {
       </div>
 
       {symbols.map((s) => (
-        <section key={s.ticker} className="news-section">
-          <h2>Noticias — {s.ticker}</h2>
+        <section key={s.ticker} className="symbol-detail">
+          <h2>{s.ticker}</h2>
+          <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onUpdate={handleUpdatePosition} />
+
+          <h3>Noticias</h3>
           {(news[s.ticker] || []).length === 0 && <p className="muted">Sin noticias todavía.</p>}
           <ul className="news-list">
             {(news[s.ticker] || []).map((item) => {

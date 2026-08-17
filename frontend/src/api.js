@@ -7,16 +7,26 @@ export async function fetchSymbols() {
   return res.json()
 }
 
-export async function addSymbol(ticker) {
+export async function addSymbol(ticker, quantity, avgCost) {
   const res = await fetch(`${API_URL}/symbols`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticker }),
+    body: JSON.stringify({ ticker, quantity, avg_cost: avgCost }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || 'No se pudo agregar el símbolo')
   }
+  return res.json()
+}
+
+export async function updatePosition(ticker, quantity, avgCost) {
+  const res = await fetch(`${API_URL}/symbols/${ticker}/position`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity, avg_cost: avgCost }),
+  })
+  if (!res.ok) throw new Error('No se pudo actualizar la posición')
   return res.json()
 }
 

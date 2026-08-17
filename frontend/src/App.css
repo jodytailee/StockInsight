@@ -48,8 +48,14 @@
   border-bottom: 1px solid #ddd;
 }
 
-.news-section {
-  margin-top: 2rem;
+.symbol-detail {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #eee;
+}
+
+.symbol-detail h3 {
+  margin-top: 1.5rem;
 }
 
 .muted {
@@ -121,4 +127,84 @@
   font-size: 0.7rem;
   color: #888;
   font-weight: normal;
+}
+
+.position-box {
+  background: #f7f7f7;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.position-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.position-summary button {
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.position-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.position-form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.position-form input {
+  padding: 0.4rem;
+  font-size: 0.95rem;
+  margin-top: 0.2rem;
+}
+
+.position-form button {
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.rec-cards {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.rec-card {
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  background: white;
+  border: 1px solid #ddd;
+  min-width: 100px;
+}
+
+.rec-card.rating-buy {
+  border-color: #1e8e3e;
+}
+
+.rec-card.rating-sell {
+  border-color: #c0392b;
+}
+
+.rec-label {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.rec-action {
+  font-weight: 600;
+}
+
+.rec-return {
+  font-size: 0.8rem;
+  color: #666;
 }

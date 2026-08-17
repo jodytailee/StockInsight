@@ -5,6 +5,13 @@ from pydantic import BaseModel, ConfigDict
 
 class SymbolCreate(BaseModel):
     ticker: str
+    quantity: float | None = None
+    avg_cost: float | None = None
+
+
+class SymbolPositionUpdate(BaseModel):
+    quantity: float | None = None
+    avg_cost: float | None = None
 
 
 class SymbolOut(BaseModel):
@@ -13,6 +20,8 @@ class SymbolOut(BaseModel):
     id: int
     ticker: str
     created_at: datetime
+    quantity: float | None = None
+    avg_cost: float | None = None
 
 
 class PricePointOut(BaseModel):
@@ -39,6 +48,11 @@ class MlDirectionOut(BaseModel):
     n_samples: int
 
 
+class RecommendationOut(BaseModel):
+    action: str
+    expected_return_pct: float
+
+
 class InsightsOut(BaseModel):
     sentiment_short_term: float | None
     sentiment_medium_term: float | None
@@ -51,3 +65,9 @@ class InsightsOut(BaseModel):
     is_preliminary_projection: bool = True
     ml_direction_1d: MlDirectionOut | None = None
     ml_direction_1w: MlDirectionOut | None = None
+    quantity: float | None = None
+    avg_cost: float | None = None
+    unrealized_pnl_pct: float | None = None
+    recommendation_1w: RecommendationOut
+    recommendation_1m: RecommendationOut
+    recommendation_1y: RecommendationOut
