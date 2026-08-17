@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date as date_, datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -15,6 +15,7 @@ class Symbol(Base):
 
     prices: Mapped[list["PricePoint"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
     news: Mapped[list["NewsItem"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
+    daily_prices: Mapped[list["DailyPrice"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
 
 
 class PricePoint(Base):
@@ -42,3 +43,22 @@ class NewsItem(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     symbol: Mapped["Symbol"] = relationship(back_populates="news")
+
+
+class DailyPrice(Base):
+    """Histórico diario (OHLCV) usado para entrenar los modelos ML — poblado
+    por backfill desde yfinance, no por el scheduler en vivo."""
+
+    __tablename__ = "daily_prices"
+    __table_args__ = (UniqueConstraint("symbol_id", "date", name="uq_daily_price_symbol_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id"))
+    date: Mapped[date_] = mapped_column(Date)
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+
+    symbol: Mapped["Symbol"] = relationship(back_populates="daily_prices")

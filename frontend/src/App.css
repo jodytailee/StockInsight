@@ -116,3 +116,9 @@
 .rating-neutral {
   color: #888;
 }
+
+.ml-accuracy {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: normal;
+}

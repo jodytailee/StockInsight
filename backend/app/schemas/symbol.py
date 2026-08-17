@@ -32,6 +32,13 @@ class NewsItemOut(BaseModel):
     sentiment_score: float
 
 
+class MlDirectionOut(BaseModel):
+    probability_up: float
+    test_accuracy: float | None
+    trained_at: str
+    n_samples: int
+
+
 class InsightsOut(BaseModel):
     sentiment_short_term: float | None
     sentiment_medium_term: float | None
@@ -42,3 +49,5 @@ class InsightsOut(BaseModel):
     target_price_1m: float
     target_price_1y: float
     is_preliminary_projection: bool = True
+    ml_direction_1d: MlDirectionOut | None = None
+    ml_direction_1w: MlDirectionOut | None = None

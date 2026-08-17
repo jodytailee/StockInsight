@@ -23,6 +23,19 @@ function ratingClassName(rating) {
   return 'rating-neutral'
 }
 
+function MlCell({ ml }) {
+  if (!ml) return <td className="muted">Sin modelo</td>
+  const pct = Math.round(ml.probability_up * 100)
+  const className = pct >= 55 ? 'sentiment-positive' : pct <= 45 ? 'sentiment-negative' : 'sentiment-neutral'
+  const accuracyPct = ml.test_accuracy != null ? Math.round(ml.test_accuracy * 100) : null
+  return (
+    <td className={className}>
+      {pct}% sube
+      {accuracyPct != null && <div className="ml-accuracy">acc. hist. {accuracyPct}%</div>}
+    </td>
+  )
+}
+
 function App() {
   const [symbols, setSymbols] = useState([])
   const [prices, setPrices] = useState({})
@@ -139,8 +152,9 @@ function App() {
 
       <p className="muted preliminary-note">
         Los precios objetivo (1sem/1mes/1año) son una <strong>estimación preliminar</strong>{' '}
-        basada en tendencia reciente + sentimiento de noticias — todavía no es el modelo de
-        Machine Learning planeado, que requiere más histórico propio para entrenarse.
+        basada en tendencia reciente + sentimiento de noticias, no el modelo ML. Las columnas
+        "ML" sí son un modelo entrenado (Random Forest sobre indicadores técnicos), pero con
+        pocos datos todavía — el accuracy histórico mostrado es bajo, tómalo como experimental.
       </p>
 
       <div className="table-scroll">
@@ -157,6 +171,8 @@ function App() {
               <th>Target 1sem</th>
               <th>Target 1mes</th>
               <th>Target 1año</th>
+              <th>ML 1 día</th>
+              <th>ML 1 sem</th>
               <th></th>
             </tr>
           </thead>
@@ -184,6 +200,8 @@ function App() {
                   <td>{insight ? `$${insight.target_price_1w.toFixed(2)}` : '—'}</td>
                   <td>{insight ? `$${insight.target_price_1m.toFixed(2)}` : '—'}</td>
                   <td>{insight ? `$${insight.target_price_1y.toFixed(2)}` : '—'}</td>
+                  <MlCell ml={insight?.ml_direction_1d} />
+                  <MlCell ml={insight?.ml_direction_1w} />
                   <td>
                     <button type="button" className="remove-btn" onClick={() => handleRemoveSymbol(s.ticker)}>
                       Quitar

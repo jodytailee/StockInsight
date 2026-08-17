@@ -11,6 +11,7 @@ from app import models
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.schemas.symbol import InsightsOut, NewsItemOut, PricePointOut, SymbolCreate, SymbolOut
+from app.ml.predict import predict_direction
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.news_service import fetch_news
 from app.services.price_service import fetch_current_price
@@ -199,6 +200,9 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
 
     targets = project_target_prices(db, symbol.id, current_price, sentiment["medium_term"])
 
+    ml_1d = predict_direction(db, symbol.id, symbol.ticker, "1d", current_price)
+    ml_1w = predict_direction(db, symbol.id, symbol.ticker, "1w", current_price)
+
     return InsightsOut(
         sentiment_short_term=sentiment["short_term"],
         sentiment_medium_term=sentiment["medium_term"],
@@ -208,6 +212,8 @@ def get_insights(ticker: str, db: Session = Depends(get_db)):
         target_price_1w=targets["target_price_1w"],
         target_price_1m=targets["target_price_1m"],
         target_price_1y=targets["target_price_1y"],
+        ml_direction_1d=ml_1d,
+        ml_direction_1w=ml_1w,
     )
 
 

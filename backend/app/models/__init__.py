@@ -1,3 +1,3 @@
-from app.models.symbol import NewsItem, PricePoint, Symbol
+from app.models.symbol import DailyPrice, NewsItem, PricePoint, Symbol
 
-__all__ = ["Symbol", "PricePoint", "NewsItem"]
+__all__ = ["Symbol", "PricePoint", "NewsItem", "DailyPrice"]
