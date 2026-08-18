@@ -56,7 +56,8 @@ def generate_analysis(ticker: str, current_price: float, insight_data: dict, rec
         },
         json={
             "model": MODEL,
-            "max_tokens": 400,
+            "max_tokens": 500,
+            "thinking": {"type": "disabled"},
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=30,
