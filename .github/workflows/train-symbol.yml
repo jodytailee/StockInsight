@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: train-symbol-artifacts
+  cancel-in-progress: false
+
 jobs:
   train:
     runs-on: ubuntu-latest
@@ -49,4 +53,5 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git add backend/app/ml/artifacts/
           git diff --quiet --cached || git commit -m "Auto-train ML model for ${{ steps.vars.outputs.ticker }}"
+          git pull --rebase origin main
           git push
