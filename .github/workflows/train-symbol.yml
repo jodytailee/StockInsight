@@ -1,0 +1,52 @@
+name: Train ML model for symbol
+
+on:
+  repository_dispatch:
+    types: [train-symbol]
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Ticker a entrenar"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --quiet sqlalchemy psycopg2-binary yfinance pandas scikit-learn joblib pydantic-settings python-dotenv
+
+      - name: Resolve ticker
+        id: vars
+        run: |
+          TICKER="${{ github.event.client_payload.ticker || github.event.inputs.ticker }}"
+          echo "ticker=$TICKER" >> "$GITHUB_OUTPUT"
+
+      - name: Backfill daily prices
+        working-directory: backend
+        run: python scripts/backfill_daily_prices.py ${{ steps.vars.outputs.ticker }}
+
+      - name: Train models
+        working-directory: backend
+        run: python scripts/train_models.py ${{ steps.vars.outputs.ticker }}
+
+      - name: Commit and push trained model artifacts
+        run: |
+          git config user.name "stockinsight-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add backend/app/ml/artifacts/
+          git diff --quiet --cached || git commit -m "Auto-train ML model for ${{ steps.vars.outputs.ticker }}"
+          git push

@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     finnhub_api_key: str = ""
     anthropic_api_key: str = ""
+    github_dispatch_token: str = ""
+    github_repo: str = "jodytailee/StockInsight"
     resend_api_key: str = ""
     resend_from_email: str = "StockInsight <onboarding@resend.dev>"
     notification_email_to: str = "jodytailee@gmail.com"

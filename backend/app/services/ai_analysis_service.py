@@ -63,4 +63,7 @@ def generate_analysis(ticker: str, current_price: float, insight_data: dict, rec
     )
     response.raise_for_status()
     data = response.json()
-    return data["content"][0]["text"]
+    text_blocks = [block["text"] for block in data["content"] if block.get("type") == "text"]
+    if not text_blocks:
+        raise ValueError(f"Respuesta de Anthropic sin bloque de texto: {data}")
+    return "".join(text_blocks)

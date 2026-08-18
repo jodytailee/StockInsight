@@ -35,6 +35,7 @@ from app.services.projection_service import project_target_prices
 from app.services.recommendation_service import generate_recommendations
 from app.services.sentiment_aggregation import aggregate_sentiment
 from app.services.sentiment_service import score_sentiment
+from app.services.training_dispatch_service import trigger_training
 
 
 def _ensure_symbol_columns():
@@ -199,6 +200,9 @@ def add_symbol(payload: SymbolCreate, db: Session = Depends(get_db)):
     db.add(symbol)
     db.commit()
     db.refresh(symbol)
+
+    trigger_training(ticker)
+
     return symbol
 
 
