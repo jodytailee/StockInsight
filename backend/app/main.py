@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -75,8 +76,9 @@ async def broadcast(message: dict):
             connected_clients.remove(client)
 
 
-async def poll_prices_job():
+def _poll_prices_sync() -> list[dict]:
     db = SessionLocal()
+    messages = []
     try:
         symbols = db.query(models.Symbol).all()
         for symbol in symbols:
@@ -88,7 +90,7 @@ async def poll_prices_job():
             db.add(point)
             db.commit()
             db.refresh(point)
-            await broadcast(
+            messages.append(
                 {
                     "type": "price",
                     "ticker": symbol.ticker,
@@ -98,10 +100,18 @@ async def poll_prices_job():
             )
     finally:
         db.close()
+    return messages
 
 
-async def poll_news_job():
+async def poll_prices_job():
+    messages = await asyncio.to_thread(_poll_prices_sync)
+    for msg in messages:
+        await broadcast(msg)
+
+
+def _poll_news_sync() -> list[dict]:
     db = SessionLocal()
+    messages = []
     try:
         symbols = db.query(models.Symbol).all()
         for symbol in symbols:
@@ -122,7 +132,7 @@ async def poll_news_job():
                     db.rollback()
                     continue
                 db.refresh(news_item)
-                await broadcast(
+                messages.append(
                     {
                         "type": "news",
                         "ticker": symbol.ticker,
@@ -135,9 +145,16 @@ async def poll_news_job():
                 )
     finally:
         db.close()
+    return messages
 
 
-async def send_daily_digest_job():
+async def poll_news_job():
+    messages = await asyncio.to_thread(_poll_news_sync)
+    for msg in messages:
+        await broadcast(msg)
+
+
+def _send_daily_digest_sync():
     db = SessionLocal()
     try:
         html = build_daily_digest_html(db)
@@ -145,6 +162,10 @@ async def send_daily_digest_job():
         send_email(f"StockInsight — Resumen diario ({today})", html)
     finally:
         db.close()
+
+
+async def send_daily_digest_job():
+    await asyncio.to_thread(_send_daily_digest_sync)
 
 
 @asynccontextmanager
