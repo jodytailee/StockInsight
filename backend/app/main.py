@@ -161,7 +161,14 @@ app = FastAPI(title="StockInsight API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", settings.frontend_url],
+    allow_origins=list(
+        {
+            "http://localhost:5173",
+            "https://stock-insight-navy.vercel.app",
+            "https://stockinsight.ticolab.app",
+            settings.frontend_url,
+        }
+    ),
     allow_methods=["*"],
     allow_headers=["*"],
 )
