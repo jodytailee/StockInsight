@@ -174,6 +174,12 @@ app.add_middleware(
 )
 
 
+@app.post("/news/poll-now")
+async def poll_news_now():
+    await poll_news_job()
+    return {"status": "done"}
+
+
 @app.post("/digest/send-now")
 async def send_digest_now():
     await send_daily_digest_job()
