@@ -2,9 +2,13 @@ from calendar import timegm
 from datetime import datetime, timezone
 
 import feedparser
+import requests
 
 YAHOO_RSS_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
 GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
+
+# Algunos servidores bloquean el User-Agent por defecto de requests/feedparser.
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StockInsightBot/1.0; +https://stockinsight.ticolab.app)"}
 
 
 def _entry_to_item(entry, source: str) -> dict | None:
@@ -21,15 +25,25 @@ def _entry_to_item(entry, source: str) -> dict | None:
 
 def _fetch_feed(url: str, source: str) -> list[dict]:
     try:
-        feed = feedparser.parse(url)
-    except Exception:
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"[news] {source} fetch failed ({url}): {type(e).__name__} {e}")
         return []
+
+    feed = feedparser.parse(response.content)
+    if feed.bozo:
+        print(f"[news] {source} feed parse warning ({url}): {feed.bozo_exception}")
 
     items = []
     for entry in feed.entries:
         item = _entry_to_item(entry, source)
         if item:
             items.append(item)
+
+    if not items:
+        print(f"[news] {source} returned 0 entries for {url} (status={response.status_code})")
+
     return items
 
 
