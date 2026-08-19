@@ -150,6 +150,29 @@
   font-weight: normal;
 }
 
+.fundamentals-box {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.fundamentals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.fundamentals-grid > div {
+  font-size: 0.9rem;
+}
+
+.fundamentals-grid .muted {
+  font-size: 0.72rem;
+  display: block;
+}
+
 .ai-analysis-box {
   background: var(--surface);
   border-radius: 8px;

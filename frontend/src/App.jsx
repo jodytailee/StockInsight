@@ -150,6 +150,37 @@ function LotRow({ ticker, lot, onChanged, onError }) {
   )
 }
 
+function fmt(value, suffix = '') {
+  return value == null ? '—' : `${value}${suffix}`
+}
+
+function FundamentalsSection({ fundamentals }) {
+  if (!fundamentals) return null
+  const f = fundamentals
+
+  return (
+    <div className="fundamentals-box">
+      <h3 style={{ marginTop: 0 }}>Fundamentales{f.industry ? ` — ${f.industry}` : ''}</h3>
+      <div className="fundamentals-grid">
+        <div><span className="muted">P/E (TTM)</span><div>{fmt(f.pe_ttm)}</div></div>
+        <div><span className="muted">P/E forward</span><div>{fmt(f.forward_pe)}</div></div>
+        <div><span className="muted">PEG</span><div>{fmt(f.peg_ttm)}</div></div>
+        <div><span className="muted">EPS (TTM)</span><div>{fmt(f.eps_ttm)}</div></div>
+        <div><span className="muted">Cash flow/acción</span><div>{fmt(f.cash_flow_per_share_ttm)}</div></div>
+        <div><span className="muted">Margen bruto</span><div>{fmt(f.gross_margin_ttm, '%')}</div></div>
+        <div><span className="muted">Margen neto</span><div>{fmt(f.net_profit_margin_ttm, '%')}</div></div>
+        <div><span className="muted">ROE</span><div>{fmt(f.roe_ttm, '%')}</div></div>
+        <div><span className="muted">ROA</span><div>{fmt(f.roa_ttm, '%')}</div></div>
+        <div><span className="muted">Deuda/Equity</span><div>{fmt(f.debt_to_equity)}</div></div>
+        <div><span className="muted">Dividend yield</span><div>{fmt(f.dividend_yield_ttm, '%')}</div></div>
+        <div><span className="muted">Beta</span><div>{fmt(f.beta)}</div></div>
+        <div><span className="muted">Market cap</span><div>{f.market_cap != null ? `$${(f.market_cap / 1000).toFixed(1)}B` : '—'}</div></div>
+        <div><span className="muted">Rango 52 sem.</span><div>{fmt(f.week52_low)} - {fmt(f.week52_high)}</div></div>
+      </div>
+    </div>
+  )
+}
+
 function AiAnalysisSection({ ticker }) {
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -508,6 +539,7 @@ function App() {
       {symbols.map((s) => (
         <section key={s.ticker} className="symbol-detail">
           <h2>{s.ticker}</h2>
+          <FundamentalsSection fundamentals={insights[s.ticker]?.fundamentals} />
           <AiAnalysisSection ticker={s.ticker} />
           <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onLotsChanged={handleLotsChanged} />
 

@@ -27,6 +27,21 @@ def _build_prompt(ticker: str, current_price: float, insight_data: dict, recent_
 
     headlines_block = "\n".join(f"- {h}" for h in recent_headlines[:8]) or "Sin noticias recientes."
 
+    fundamentals = insight_data.get("fundamentals")
+    fundamentals_line = "Sin datos fundamentales disponibles."
+    if fundamentals:
+        fundamentals_line = (
+            f"P/E (TTM): {fundamentals.get('pe_ttm')}, P/E forward: {fundamentals.get('forward_pe')}, "
+            f"PEG: {fundamentals.get('peg_ttm')}, EPS (TTM): {fundamentals.get('eps_ttm')}, "
+            f"Cash flow por acción (TTM): {fundamentals.get('cash_flow_per_share_ttm')}, "
+            f"Margen bruto: {fundamentals.get('gross_margin_ttm')}%, Margen neto: {fundamentals.get('net_profit_margin_ttm')}%, "
+            f"ROE: {fundamentals.get('roe_ttm')}%, ROA: {fundamentals.get('roa_ttm')}%, "
+            f"Deuda/Equity: {fundamentals.get('debt_to_equity')}, Dividend yield: {fundamentals.get('dividend_yield_ttm')}%, "
+            f"Beta: {fundamentals.get('beta')}, Market cap: ${fundamentals.get('market_cap')}M, "
+            f"Rango 52 semanas: ${fundamentals.get('week52_low')} - ${fundamentals.get('week52_high')}, "
+            f"Industria: {fundamentals.get('industry')}"
+        )
+
     return f"""Sos un analista financiero generando un resumen breve para un dashboard personal de inversión (StockInsight). Analiza el símbolo {ticker}.
 
 Datos disponibles:
@@ -36,12 +51,13 @@ Datos disponibles:
 - Sentimiento de noticias (VADER, -1 a +1): corto plazo {insight_data.get('sentiment_short_term')}, medio plazo {insight_data.get('sentiment_medium_term')}, largo plazo {insight_data.get('sentiment_long_term')}
 - Target price preliminar (heurística, no ML): 1 semana ${insight_data.get('target_price_1w')}, 1 mes ${insight_data.get('target_price_1m')}, 1 año ${insight_data.get('target_price_1y')}
 - {ml_line}
+- Fundamentales (Finnhub): {fundamentals_line}
 - Recomendación del sistema a 1 semana: {insight_data.get('recommendation_1w', {}).get('action')}
 
 Titulares recientes:
 {headlines_block}
 
-Escribí un análisis de 3-4 oraciones en español, explicando el razonamiento detrás de la recomendación actual, mencionando qué señales apuntan en qué dirección y si hay contradicciones entre ellas (ej. analistas positivos pero sentimiento de noticias negativo). Sé directo y concreto, sin relleno. Terminá SIEMPRE con una frase aclarando que esto es informativo, generado automáticamente, y no es asesoría financiera profesional."""
+Escribí un análisis de 4-5 oraciones en español, incorporando también una lectura de los fundamentales (¿la valuación por P/E parece cara o barata para la industria? ¿el cash flow y los márgenes son sanos? ¿el nivel de deuda es preocupante?), explicando el razonamiento detrás de la recomendación actual, mencionando qué señales apuntan en qué dirección y si hay contradicciones entre ellas (ej. analistas positivos pero sentimiento de noticias negativo, o buen momentum pero fundamentales débiles). Sé directo y concreto, sin relleno. Terminá SIEMPRE con una frase aclarando que esto es informativo, generado automáticamente, y no es asesoría financiera profesional."""
 
 
 def generate_analysis(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[str]) -> str:
@@ -56,7 +72,7 @@ def generate_analysis(ticker: str, current_price: float, insight_data: dict, rec
         },
         json={
             "model": MODEL,
-            "max_tokens": 800,
+            "max_tokens": 1000,
             "thinking": {"type": "disabled"},
             "messages": [{"role": "user", "content": prompt}],
         },

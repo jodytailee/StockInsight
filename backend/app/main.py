@@ -29,6 +29,7 @@ from app.services.ai_analysis_service import generate_analysis
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.digest_service import build_daily_digest_html
 from app.services.email_service import send_email
+from app.services.fundamentals_service import fetch_fundamentals
 from app.services.news_service import fetch_news
 from app.services.position_service import refresh_symbol_position
 from app.services.price_service import fetch_current_price
@@ -404,6 +405,11 @@ def _compute_insights(db, symbol) -> InsightsOut:
     ml_1d = predict_direction(db, symbol.id, symbol.ticker, "1d", current_price)
     ml_1w = predict_direction(db, symbol.id, symbol.ticker, "1w", current_price)
 
+    try:
+        fundamentals = fetch_fundamentals(symbol.ticker)
+    except Exception:
+        fundamentals = None
+
     return InsightsOut(
         sentiment_short_term=sentiment["short_term"],
         sentiment_medium_term=sentiment["medium_term"],
@@ -415,6 +421,7 @@ def _compute_insights(db, symbol) -> InsightsOut:
         target_price_1y=targets["target_price_1y"],
         ml_direction_1d=ml_1d,
         ml_direction_1w=ml_1w,
+        fundamentals=fundamentals,
         quantity=symbol.quantity,
         avg_cost=symbol.avg_cost,
         unrealized_pnl_pct=unrealized_pnl_pct,

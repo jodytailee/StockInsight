@@ -79,6 +79,26 @@ class AiAnalysisOut(BaseModel):
     generated_at: datetime
 
 
+class FundamentalsOut(BaseModel):
+    pe_ttm: float | None
+    forward_pe: float | None
+    peg_ttm: float | None
+    cash_flow_per_share_ttm: float | None
+    gross_margin_ttm: float | None
+    net_profit_margin_ttm: float | None
+    operating_margin_ttm: float | None
+    roe_ttm: float | None
+    roa_ttm: float | None
+    debt_to_equity: float | None
+    dividend_yield_ttm: float | None
+    eps_ttm: float | None
+    beta: float | None
+    week52_high: float | None
+    week52_low: float | None
+    market_cap: float | None
+    industry: str | None
+
+
 class InsightsOut(BaseModel):
     sentiment_short_term: float | None
     sentiment_medium_term: float | None
@@ -91,6 +111,7 @@ class InsightsOut(BaseModel):
     is_preliminary_projection: bool = True
     ml_direction_1d: MlDirectionOut | None = None
     ml_direction_1w: MlDirectionOut | None = None
+    fundamentals: FundamentalsOut | None = None
     quantity: float | None = None
     avg_cost: float | None = None
     unrealized_pnl_pct: float | None = None
