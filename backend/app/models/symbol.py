@@ -1,6 +1,6 @@
 from datetime import date as date_, datetime, timezone
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -82,3 +82,25 @@ class PositionLot(Base):
     purchased_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     symbol: Mapped["Symbol"] = relationship(back_populates="lots")
+
+
+class PredictionLog(Base):
+    """Snapshot diario del pronóstico del sistema (dirección sube/baja) por
+    símbolo y horizonte, para poder medir después si acertó o no."""
+
+    __tablename__ = "prediction_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id"))
+    horizon: Mapped[str] = mapped_column(String(10))  # "1d" | "1w" | "1m"
+    source: Mapped[str] = mapped_column(String(20))  # "ml" | "heuristic"
+    predicted_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    target_date: Mapped[datetime] = mapped_column(DateTime)
+    price_at_prediction: Mapped[float] = mapped_column(Float)
+    predicted_direction: Mapped[str] = mapped_column(String(10))  # "up" | "down"
+    probability_up: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    price_at_resolution: Mapped[float | None] = mapped_column(Float, nullable=True)
+    actual_direction: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    was_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

@@ -2,8 +2,10 @@ from datetime import datetime, timedelta, timezone
 
 from app import models
 from app.ml.predict import predict_direction
+from app.services.prediction_tracking_service import get_accuracy_summary, get_recently_resolved
 
 NEWS_WINDOW = timedelta(days=1)
+HORIZON_LABELS = {"1d": "Ayer (1 día)", "1w": "Semana pasada (1 sem)", "1m": "Mes pasado (1 mes)"}
 
 
 def _sentiment_word(score: float) -> str:
@@ -54,6 +56,31 @@ def _symbol_section_html(db, symbol: models.Symbol) -> str:
 
     price_html = f"${current_price:.2f}" if current_price is not None else "N/D"
 
+    since = datetime.now(timezone.utc) - timedelta(hours=6)
+    resolved = get_recently_resolved(db, symbol.id, since)
+    accuracy = get_accuracy_summary(db, symbol.id)
+
+    def result_line(pred) -> str:
+        label = HORIZON_LABELS.get(pred.horizon, pred.horizon)
+        outcome = "✅ Acertó" if pred.was_correct else "❌ Falló"
+        return (
+            f"<li>{label}: predijo <b>{pred.predicted_direction}</b> "
+            f"(desde ${pred.price_at_prediction:.2f}), resultado real: <b>{pred.actual_direction}</b> "
+            f"(${pred.price_at_resolution:.2f}) — {outcome} [{pred.source}]</li>"
+        )
+
+    predictions_html = "<p style='color:#888'>Sin pronósticos que resolver hoy todavía.</p>"
+    if resolved:
+        predictions_html = "<ul>" + "".join(result_line(p) for p in resolved) + "</ul>"
+
+    accuracy_rows = "".join(
+        f"<li>{HORIZON_LABELS.get(h, h)}: "
+        f"{a['accuracy_pct']}% ({a['correct']}/{a['total']} pronósticos resueltos)</li>"
+        if a["total"]
+        else f"<li>{HORIZON_LABELS.get(h, h)}: todavía sin pronósticos resueltos</li>"
+        for h, a in accuracy.items()
+    )
+
     return f"""
     <h2>{symbol.ticker}</h2>
     <p>Precio actual: {price_html}</p>
@@ -64,6 +91,10 @@ def _symbol_section_html(db, symbol: models.Symbol) -> str:
         {ml_line("1 día", ml_1d)}
         {ml_line("1 semana", ml_1w)}
     </ul>
+    <h3>Resultado de pronósticos de hoy</h3>
+    {predictions_html}
+    <h3>Accuracy acumulado (histórico real, no de validación)</h3>
+    <ul>{accuracy_rows}</ul>
     <hr />
     """
 

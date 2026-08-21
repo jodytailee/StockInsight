@@ -32,6 +32,7 @@ from app.services.email_service import send_email
 from app.services.fundamentals_service import fetch_fundamentals
 from app.services.news_service import fetch_news
 from app.services.position_service import refresh_symbol_position
+from app.services.prediction_tracking_service import log_new_predictions, resolve_due_predictions
 from app.services.price_service import fetch_current_price
 from app.services.projection_service import project_target_prices
 from app.services.recommendation_service import generate_recommendations
@@ -169,10 +170,24 @@ async def send_daily_digest_job():
     await asyncio.to_thread(_send_daily_digest_sync)
 
 
+def _track_predictions_sync():
+    db = SessionLocal()
+    try:
+        resolve_due_predictions(db)
+        log_new_predictions(db)
+    finally:
+        db.close()
+
+
+async def track_predictions_job():
+    await asyncio.to_thread(_track_predictions_sync)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.add_job(poll_prices_job, "interval", minutes=PRICE_POLL_INTERVAL_MINUTES)
     scheduler.add_job(poll_news_job, "interval", minutes=NEWS_POLL_INTERVAL_MINUTES)
+    scheduler.add_job(track_predictions_job, "cron", hour=13, minute=55)  # justo antes del digest
     scheduler.add_job(send_daily_digest_job, "cron", hour=14, minute=0)  # 8:00 AM UTC-6
     scheduler.start()
     yield
@@ -199,6 +214,12 @@ app.add_middleware(
 @app.post("/news/poll-now")
 async def poll_news_now():
     await poll_news_job()
+    return {"status": "done"}
+
+
+@app.post("/predictions/track-now")
+async def track_predictions_now():
+    await track_predictions_job()
     return {"status": "done"}
 
 
