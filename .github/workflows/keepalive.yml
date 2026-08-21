@@ -1,8 +1,10 @@
 name: Keep Render backend awake
 
+# Deshabilitado: los triggers "schedule" de GitHub Actions son "best effort"
+# y pueden atrasarse 40-70+ min sin aviso, dejando que Render duerma la
+# instancia entre pings. Reemplazado por un ping externo real desde
+# cron-job.org cada 10 min. Se deja workflow_dispatch para pruebas manuales.
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:
