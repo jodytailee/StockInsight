@@ -181,6 +181,37 @@ function FundamentalsSection({ fundamentals }) {
   )
 }
 
+function epsLabelClass(label) {
+  if (label === 'Bueno' || label === 'Muy alto') return 'sentiment-positive'
+  if (label === 'Negativo') return 'sentiment-negative'
+  return 'sentiment-neutral'
+}
+
+function EpsAnalysisSection({ epsAnalysis }) {
+  if (!epsAnalysis) return null
+  const e = epsAnalysis
+
+  return (
+    <div className="fundamentals-box">
+      <h3 style={{ marginTop: 0 }}>
+        Análisis de EPS — <span className={epsLabelClass(e.quality_label)}>{e.quality_label}</span>
+      </h3>
+      <p>{e.growth_explanation}</p>
+      {e.pe_context && <p className="muted">{e.pe_context}</p>}
+      <div className="fundamentals-grid">
+        <div><span className="muted">Crecimiento 3Y</span><div>{fmt(e.eps_growth_3y, '%')}</div></div>
+        <div><span className="muted">Crecimiento 5Y</span><div>{fmt(e.eps_growth_5y, '%')}</div></div>
+        <div><span className="muted">TTM YoY</span><div>{fmt(e.eps_growth_ttm_yoy, '%')}</div></div>
+        <div><span className="muted">Trimestral YoY</span><div>{fmt(e.eps_growth_quarterly_yoy, '%')}</div></div>
+      </div>
+      <p className="muted ai-analysis-meta">
+        No es el "EPS Rating" oficial de IBD (dato propietario) — es una clasificación propia basada en el
+        crecimiento interanual del EPS (10-25%/año = saludable), no una comparación contra todo el mercado.
+      </p>
+    </div>
+  )
+}
+
 function AiAnalysisSection({ ticker }) {
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -540,6 +571,7 @@ function App() {
         <section key={s.ticker} className="symbol-detail">
           <h2>{s.ticker}</h2>
           <FundamentalsSection fundamentals={insights[s.ticker]?.fundamentals} />
+          <EpsAnalysisSection epsAnalysis={insights[s.ticker]?.eps_analysis} />
           <AiAnalysisSection ticker={s.ticker} />
           <PositionSection ticker={s.ticker} insight={insights[s.ticker]} onLotsChanged={handleLotsChanged} />
 

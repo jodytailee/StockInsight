@@ -39,7 +39,9 @@ def _build_prompt(ticker: str, current_price: float, insight_data: dict, recent_
             f"Deuda/Equity: {fundamentals.get('debt_to_equity')}, Dividend yield: {fundamentals.get('dividend_yield_ttm')}%, "
             f"Beta: {fundamentals.get('beta')}, Market cap: ${fundamentals.get('market_cap')}M, "
             f"Rango 52 semanas: ${fundamentals.get('week52_low')} - ${fundamentals.get('week52_high')}, "
-            f"Industria: {fundamentals.get('industry')}"
+            f"Industria: {fundamentals.get('industry')}, "
+            f"Crecimiento EPS 3Y: {fundamentals.get('eps_growth_3y')}%, 5Y: {fundamentals.get('eps_growth_5y')}%, "
+            f"TTM YoY: {fundamentals.get('eps_growth_ttm_yoy')}%"
         )
 
     return f"""Sos un analista financiero generando un resumen breve para un dashboard personal de inversión (StockInsight). Analiza el símbolo {ticker}.
@@ -57,7 +59,7 @@ Datos disponibles:
 Titulares recientes:
 {headlines_block}
 
-Escribí un análisis de 4-5 oraciones en español, incorporando también una lectura de los fundamentales (¿la valuación por P/E parece cara o barata para la industria? ¿el cash flow y los márgenes son sanos? ¿el nivel de deuda es preocupante?), explicando el razonamiento detrás de la recomendación actual, mencionando qué señales apuntan en qué dirección y si hay contradicciones entre ellas (ej. analistas positivos pero sentimiento de noticias negativo, o buen momentum pero fundamentales débiles). Sé directo y concreto, sin relleno. Terminá SIEMPRE con una frase aclarando que esto es informativo, generado automáticamente, y no es asesoría financiera profesional."""
+Escribí un análisis de 4-5 oraciones en español, incorporando también una lectura de los fundamentales (¿la valuación por P/E parece cara o barata para la industria? ¿el cash flow y los márgenes son sanos? ¿el nivel de deuda es preocupante? ¿el crecimiento de EPS está en el rango saludable de 10-25% anual, estancado, o negativo?), explicando el razonamiento detrás de la recomendación actual, mencionando qué señales apuntan en qué dirección y si hay contradicciones entre ellas (ej. analistas positivos pero sentimiento de noticias negativo, o buen momentum pero fundamentales débiles). Sé directo y concreto, sin relleno. Terminá SIEMPRE con una frase aclarando que esto es informativo, generado automáticamente, y no es asesoría financiera profesional."""
 
 
 def generate_analysis(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[str]) -> str:

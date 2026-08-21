@@ -97,6 +97,20 @@ class FundamentalsOut(BaseModel):
     week52_low: float | None
     market_cap: float | None
     industry: str | None
+    eps_growth_3y: float | None = None
+    eps_growth_5y: float | None = None
+    eps_growth_ttm_yoy: float | None = None
+    eps_growth_quarterly_yoy: float | None = None
+
+
+class EpsAnalysisOut(BaseModel):
+    quality_label: str
+    growth_explanation: str
+    pe_context: str | None
+    eps_growth_3y: float | None
+    eps_growth_5y: float | None
+    eps_growth_ttm_yoy: float | None
+    eps_growth_quarterly_yoy: float | None
 
 
 class InsightsOut(BaseModel):
@@ -112,6 +126,7 @@ class InsightsOut(BaseModel):
     ml_direction_1d: MlDirectionOut | None = None
     ml_direction_1w: MlDirectionOut | None = None
     fundamentals: FundamentalsOut | None = None
+    eps_analysis: EpsAnalysisOut | None = None
     quantity: float | None = None
     avg_cost: float | None = None
     unrealized_pnl_pct: float | None = None

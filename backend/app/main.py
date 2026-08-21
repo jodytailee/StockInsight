@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.schemas.symbol import (
     AiAnalysisOut,
+    EpsAnalysisOut,
     InsightsOut,
     NewsItemOut,
     PositionLotCreate,
@@ -29,6 +30,7 @@ from app.services.ai_analysis_service import generate_analysis
 from app.services.analyst_service import fetch_analyst_rating
 from app.services.digest_service import build_daily_digest_html
 from app.services.email_service import send_email
+from app.services.eps_analysis_service import analyze_eps
 from app.services.fundamentals_service import fetch_fundamentals
 from app.services.news_service import fetch_news
 from app.services.position_service import refresh_symbol_position
@@ -431,6 +433,8 @@ def _compute_insights(db, symbol) -> InsightsOut:
     except Exception:
         fundamentals = None
 
+    eps_analysis = analyze_eps(fundamentals) if fundamentals else None
+
     return InsightsOut(
         sentiment_short_term=sentiment["short_term"],
         sentiment_medium_term=sentiment["medium_term"],
@@ -443,6 +447,7 @@ def _compute_insights(db, symbol) -> InsightsOut:
         ml_direction_1d=ml_1d,
         ml_direction_1w=ml_1w,
         fundamentals=fundamentals,
+        eps_analysis=eps_analysis,
         quantity=symbol.quantity,
         avg_cost=symbol.avg_cost,
         unrealized_pnl_pct=unrealized_pnl_pct,
