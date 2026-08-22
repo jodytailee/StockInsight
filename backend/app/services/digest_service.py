@@ -8,14 +8,6 @@ NEWS_WINDOW = timedelta(days=1)
 HORIZON_LABELS = {"1d": "Ayer (1 día)", "1w": "Semana pasada (1 sem)", "1m": "Mes pasado (1 mes)"}
 
 
-def _sentiment_word(score: float) -> str:
-    if score > 0.2:
-        return "Positiva"
-    if score < -0.2:
-        return "Negativa"
-    return "Neutral"
-
-
 def _symbol_section_html(db, symbol: models.Symbol) -> str:
     since = datetime.now(timezone.utc) - NEWS_WINDOW
     news_items = (
@@ -44,15 +36,6 @@ def _symbol_section_html(db, symbol: models.Symbol) -> str:
             f"<li>{label}: {ml['probability_up'] * 100:.0f}% probabilidad de subir "
             f"(accuracy histórico del modelo: {acc}, entrenado {ml['trained_at'][:10]})</li>"
         )
-
-    news_html = "<p style='color:#888'>Sin noticias nuevas en las últimas 24h.</p>"
-    if news_items:
-        rows = "".join(
-            f"<li><a href='{n.url}'>{n.headline}</a> — {n.source}, "
-            f"sentimiento: {_sentiment_word(n.sentiment_score)}</li>"
-            for n in news_items
-        )
-        news_html = f"<ul>{rows}</ul>"
 
     price_html = f"${current_price:.2f}" if current_price is not None else "N/D"
 
@@ -84,8 +67,7 @@ def _symbol_section_html(db, symbol: models.Symbol) -> str:
     return f"""
     <h2>{symbol.ticker}</h2>
     <p>Precio actual: {price_html}</p>
-    <h3>Noticias (últimas 24h) — {len(news_items)}</h3>
-    {news_html}
+    <p>Noticias nuevas (últimas 24h): {len(news_items)}</p>
     <h3>Estado del modelo ML</h3>
     <ul>
         {ml_line("1 día", ml_1d)}
