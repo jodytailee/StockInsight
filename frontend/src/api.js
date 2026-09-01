@@ -1,5 +1,4 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws'
 
 export async function fetchSymbols() {
   const res = await fetch(`${API_URL}/symbols`)
@@ -84,10 +83,3 @@ export async function fetchNews(ticker) {
   return res.json()
 }
 
-export function connectPriceSocket(onMessage) {
-  const socket = new WebSocket(WS_URL)
-  socket.onmessage = (event) => {
-    onMessage(JSON.parse(event.data))
-  }
-  return socket
-}

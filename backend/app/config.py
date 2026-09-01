@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     resend_from_email: str = "StockInsight <onboarding@resend.dev>"
     notification_email_to: str = "jodytailee@gmail.com"
+    cron_secret: str = ""
 
     class Config:
         env_file = ".env"

@@ -6,7 +6,6 @@ pydantic
 pydantic-settings
 yfinance
 pandas
-apscheduler
 python-dotenv
 requests
 feedparser

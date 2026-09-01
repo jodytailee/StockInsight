@@ -1,9 +1,6 @@
-import asyncio
-from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, inspect, text
 from sqlalchemy.exc import IntegrityError, NoSuchTableError
@@ -65,24 +62,21 @@ def _ensure_symbol_columns():
 Base.metadata.create_all(bind=engine)
 _ensure_symbol_columns()
 
-PRICE_POLL_INTERVAL_MINUTES = 5
-NEWS_POLL_INTERVAL_MINUTES = 10
 
-connected_clients: list[WebSocket] = []
-scheduler = AsyncIOScheduler()
-
-
-async def broadcast(message: dict):
-    for client in list(connected_clients):
-        try:
-            await client.send_json(message)
-        except Exception:
-            connected_clients.remove(client)
+def _require_cron_secret(x_cron_secret: str | None = Header(default=None), secret: str | None = None):
+    """Los endpoints /cron/* los dispara un servicio externo (cron-job.org),
+    no el propio scheduler (Vercel no soporta procesos persistentes) — así
+    que están abiertos a internet y necesitan este chequeo para que no
+    cualquiera los dispare a mano."""
+    if not settings.cron_secret:
+        return  # sin secreto configurado, no se exige (solo para desarrollo local)
+    provided = x_cron_secret or secret
+    if provided != settings.cron_secret:
+        raise HTTPException(status_code=401, detail="Invalid or missing cron secret")
 
 
-def _poll_prices_sync() -> list[dict]:
+def poll_prices_job():
     db = SessionLocal()
-    messages = []
     try:
         symbols = db.query(models.Symbol).all()
         for symbol in symbols:
@@ -90,32 +84,14 @@ def _poll_prices_sync() -> list[dict]:
                 price = fetch_current_price(symbol.ticker)
             except ValueError:
                 continue
-            point = models.PricePoint(symbol_id=symbol.id, price=price)
-            db.add(point)
+            db.add(models.PricePoint(symbol_id=symbol.id, price=price))
             db.commit()
-            db.refresh(point)
-            messages.append(
-                {
-                    "type": "price",
-                    "ticker": symbol.ticker,
-                    "price": price,
-                    "fetched_at": point.fetched_at.isoformat(),
-                }
-            )
     finally:
         db.close()
-    return messages
 
 
-async def poll_prices_job():
-    messages = await asyncio.to_thread(_poll_prices_sync)
-    for msg in messages:
-        await broadcast(msg)
-
-
-def _poll_news_sync() -> list[dict]:
+def poll_news_job():
     db = SessionLocal()
-    messages = []
     try:
         symbols = db.query(models.Symbol).all()
         for symbol in symbols:
@@ -134,31 +110,11 @@ def _poll_news_sync() -> list[dict]:
                     db.commit()
                 except IntegrityError:
                     db.rollback()
-                    continue
-                db.refresh(news_item)
-                messages.append(
-                    {
-                        "type": "news",
-                        "ticker": symbol.ticker,
-                        "source": news_item.source,
-                        "headline": news_item.headline,
-                        "url": news_item.url,
-                        "published_at": news_item.published_at.isoformat(),
-                        "sentiment_score": sentiment,
-                    }
-                )
     finally:
         db.close()
-    return messages
 
 
-async def poll_news_job():
-    messages = await asyncio.to_thread(_poll_news_sync)
-    for msg in messages:
-        await broadcast(msg)
-
-
-def _send_daily_digest_sync():
+def send_daily_digest_job():
     db = SessionLocal()
     try:
         html = build_daily_digest_html(db)
@@ -168,11 +124,7 @@ def _send_daily_digest_sync():
         db.close()
 
 
-async def send_daily_digest_job():
-    await asyncio.to_thread(_send_daily_digest_sync)
-
-
-def _track_predictions_sync():
+def track_predictions_job():
     db = SessionLocal()
     try:
         resolve_due_predictions(db)
@@ -181,22 +133,7 @@ def _track_predictions_sync():
         db.close()
 
 
-async def track_predictions_job():
-    await asyncio.to_thread(_track_predictions_sync)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    scheduler.add_job(poll_prices_job, "interval", minutes=PRICE_POLL_INTERVAL_MINUTES)
-    scheduler.add_job(poll_news_job, "interval", minutes=NEWS_POLL_INTERVAL_MINUTES)
-    scheduler.add_job(track_predictions_job, "cron", hour=13, minute=55)  # justo antes del digest
-    scheduler.add_job(send_daily_digest_job, "cron", hour=14, minute=0)  # 8:00 AM UTC-6
-    scheduler.start()
-    yield
-    scheduler.shutdown()
-
-
-app = FastAPI(title="StockInsight API", lifespan=lifespan)
+app = FastAPI(title="StockInsight API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -213,21 +150,27 @@ app.add_middleware(
 )
 
 
-@app.post("/news/poll-now")
-async def poll_news_now():
-    await poll_news_job()
+@app.post("/cron/poll-prices", dependencies=[Depends(_require_cron_secret)])
+def cron_poll_prices():
+    poll_prices_job()
     return {"status": "done"}
 
 
-@app.post("/predictions/track-now")
-async def track_predictions_now():
-    await track_predictions_job()
+@app.post("/cron/poll-news", dependencies=[Depends(_require_cron_secret)])
+def cron_poll_news():
+    poll_news_job()
     return {"status": "done"}
 
 
-@app.post("/digest/send-now")
-async def send_digest_now():
-    await send_daily_digest_job()
+@app.post("/cron/track-predictions", dependencies=[Depends(_require_cron_secret)])
+def cron_track_predictions():
+    track_predictions_job()
+    return {"status": "done"}
+
+
+@app.post("/cron/send-digest", dependencies=[Depends(_require_cron_secret)])
+def cron_send_digest():
+    send_daily_digest_job()
     return {"status": "sent"}
 
 
@@ -517,14 +460,3 @@ def get_news(ticker: str, db: Session = Depends(get_db)):
         .limit(20)
         .all()
     )
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    connected_clients.append(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        connected_clients.remove(websocket)

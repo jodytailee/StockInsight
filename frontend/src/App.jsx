@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   addLot,
   addSymbol,
-  connectPriceSocket,
   fetchAiAnalysis,
   fetchInsights,
   fetchLots,
@@ -372,7 +371,7 @@ function App() {
       .catch(() => {})
   }
 
-  useEffect(() => {
+  function refreshAll() {
     fetchSymbols()
       .then((data) => {
         setSymbols(data)
@@ -387,24 +386,14 @@ function App() {
         })
       })
       .catch((e) => setError(e.message))
+  }
 
-    const socket = connectPriceSocket((msg) => {
-      if (msg.type === 'news') {
-        setNews((prev) => {
-          const existing = prev[msg.ticker] || []
-          if (existing.some((n) => n.url === msg.url)) return prev
-          return { ...prev, [msg.ticker]: [msg, ...existing].slice(0, 20) }
-        })
-        loadInsights(msg.ticker)
-      } else {
-        setPrices((prev) => ({
-          ...prev,
-          [msg.ticker]: { price: msg.price, fetched_at: msg.fetched_at },
-        }))
-        loadInsights(msg.ticker)
-      }
-    })
-    return () => socket.close()
+  useEffect(() => {
+    refreshAll()
+    // Sin WebSocket (el backend corre en funciones serverless de Vercel, sin
+    // proceso persistente) — se refresca por polling en vez de push en vivo.
+    const interval = setInterval(refreshAll, 60000)
+    return () => clearInterval(interval)
   }, [])
 
   async function handleRemoveSymbol(ticker) {
