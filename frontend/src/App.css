@@ -96,9 +96,18 @@
 .news-meta {
   display: flex;
   gap: 0.75rem;
+  flex-wrap: wrap;
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
+}
+
+.news-tag {
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
 }
 
 .sentiment-positive {

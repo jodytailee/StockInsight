@@ -5,6 +5,7 @@ import {
   fetchAiAnalysis,
   fetchInsights,
   fetchLots,
+  fetchMarketNews,
   fetchNews,
   fetchPrice,
   fetchSymbols,
@@ -13,6 +14,35 @@ import {
   updateLot,
 } from './api'
 import './App.css'
+
+const TOPIC_LABELS = {
+  earnings: 'Earnings',
+  macro_rates: 'Tasas/macro',
+  geopolitics: 'Geopolítica',
+  regulation: 'Regulación',
+  supply_chain: 'Cadena de suministro',
+  product: 'Producto',
+  m_and_a: 'Fusión/Adquisición',
+  leadership: 'Liderazgo',
+  market_sentiment: 'Sentimiento de mercado',
+  other: 'Otro',
+}
+
+function topicLabel(topic) {
+  return TOPIC_LABELS[topic] || topic
+}
+
+function impactLabel(direction) {
+  if (direction === 'up') return 'Alcista'
+  if (direction === 'down') return 'Bajista'
+  return 'Neutral'
+}
+
+function impactClassName(direction) {
+  if (direction === 'up') return 'sentiment-positive'
+  if (direction === 'down') return 'sentiment-negative'
+  return 'sentiment-neutral'
+}
 
 function Logo() {
   return (
@@ -207,6 +237,64 @@ function EpsAnalysisSection({ epsAnalysis }) {
         No es el "EPS Rating" oficial de IBD (dato propietario) — es una clasificación propia basada en el
         crecimiento interanual del EPS (10-25%/año = saludable), no una comparación contra todo el mercado.
       </p>
+    </div>
+  )
+}
+
+function MarketNewsSection() {
+  const [items, setItems] = useState([])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    fetchMarketNews()
+      .then(setItems)
+      .catch(() => {})
+  }, [])
+
+  if (items.length === 0) return null
+
+  const avgImpact = items.filter((i) => i.impact_direction).length
+    ? Math.round(
+        (100 * items.filter((i) => i.impact_direction === 'up').length) /
+          items.filter((i) => i.impact_direction).length
+      )
+    : null
+
+  return (
+    <div className="ai-analysis-box">
+      <div className="ai-analysis-header">
+        <h3 style={{ margin: 0 }}>
+          Mercado general{avgImpact != null && <span className="muted"> — {avgImpact}% de señales alcistas</span>}
+        </h3>
+        <button type="button" onClick={() => setOpen((v) => !v)}>
+          {open ? 'Ocultar' : `Ver (${items.length})`}
+        </button>
+      </div>
+      {open && (
+        <ul className="news-list">
+          {items.map((item) => {
+            const sentiment = sentimentLabel(item.sentiment_score)
+            return (
+              <li key={item.url} className="news-item">
+                <a href={item.url} target="_blank" rel="noreferrer">
+                  {item.headline}
+                </a>
+                <div className="news-meta">
+                  <span>{item.source}</span>
+                  <span>{new Date(item.published_at).toLocaleString()}</span>
+                  <span className={sentiment.className}>{sentiment.text}</span>
+                  {item.topic && <span className="news-tag">{topicLabel(item.topic)}</span>}
+                  {item.impact_direction && (
+                    <span className={impactClassName(item.impact_direction)}>
+                      Impacto: {impactLabel(item.impact_direction)}
+                    </span>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
@@ -485,6 +573,8 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
+      <MarketNewsSection />
+
       <p className="muted preliminary-note">
         Los precios objetivo y las recomendaciones (1sem/1mes/1año) son una{' '}
         <strong>estimación preliminar</strong> basada en tendencia reciente + sentimiento de
@@ -578,6 +668,17 @@ function App() {
                     <span>{item.source}</span>
                     <span>{new Date(item.published_at).toLocaleString()}</span>
                     <span className={sentiment.className}>{sentiment.text}</span>
+                    {item.topic && <span className="news-tag">{topicLabel(item.topic)}</span>}
+                    {item.scope && (
+                      <span className="news-tag">
+                        {item.scope === 'market_wide' ? 'Mercado general' : 'Específica'}
+                      </span>
+                    )}
+                    {item.impact_direction && (
+                      <span className={impactClassName(item.impact_direction)}>
+                        Impacto: {impactLabel(item.impact_direction)}
+                      </span>
+                    )}
                   </div>
                 </li>
               )

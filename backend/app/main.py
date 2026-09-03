@@ -29,7 +29,8 @@ from app.services.digest_service import build_daily_digest_html
 from app.services.email_service import send_email
 from app.services.eps_analysis_service import analyze_eps
 from app.services.fundamentals_service import fetch_fundamentals
-from app.services.news_service import fetch_news
+from app.services.news_classification_service import classify_batch
+from app.services.news_service import fetch_general_market_news, fetch_news
 from app.services.position_service import refresh_symbol_position
 from app.services.prediction_tracking_service import log_new_predictions, resolve_due_predictions
 from app.services.price_service import fetch_current_price
@@ -59,8 +60,26 @@ def _ensure_symbol_columns():
             conn.execute(text("ALTER TABLE symbols ADD COLUMN ai_analysis_generated_at TIMESTAMP"))
 
 
+def _ensure_news_columns():
+    try:
+        columns = {c["name"] for c in inspect(engine).get_columns("news_items")}
+    except NoSuchTableError:
+        return
+
+    with engine.begin() as conn:
+        if "topic" not in columns:
+            conn.execute(text("ALTER TABLE news_items ADD COLUMN topic VARCHAR(30)"))
+        if "scope" not in columns:
+            conn.execute(text("ALTER TABLE news_items ADD COLUMN scope VARCHAR(20)"))
+        if "impact_direction" not in columns:
+            conn.execute(text("ALTER TABLE news_items ADD COLUMN impact_direction VARCHAR(10)"))
+        if "classified_at" not in columns:
+            conn.execute(text("ALTER TABLE news_items ADD COLUMN classified_at TIMESTAMP"))
+
+
 Base.metadata.create_all(bind=engine)
 _ensure_symbol_columns()
+_ensure_news_columns()
 
 
 def _require_cron_secret(x_cron_secret: str | None = Header(default=None), secret: str | None = None):
@@ -90,12 +109,29 @@ def poll_prices_job():
         db.close()
 
 
+GENERAL_TICKER = "GENERAL"
+
+
+def _get_or_create_general_symbol(db) -> models.Symbol:
+    symbol = db.query(models.Symbol).filter_by(ticker=GENERAL_TICKER).first()
+    if not symbol:
+        symbol = models.Symbol(ticker=GENERAL_TICKER)
+        db.add(symbol)
+        db.commit()
+        db.refresh(symbol)
+    return symbol
+
+
 def poll_news_job():
     db = SessionLocal()
     try:
-        symbols = db.query(models.Symbol).all()
-        for symbol in symbols:
-            for item in fetch_news(symbol.ticker):
+        symbols = db.query(models.Symbol).filter(models.Symbol.ticker != GENERAL_TICKER).all()
+        general_symbol = _get_or_create_general_symbol(db)
+
+        new_items: list[tuple[models.NewsItem, str, bool]] = []  # (item, ticker, is_general)
+
+        def save_items(symbol: models.Symbol, raw_items: list[dict], is_general: bool):
+            for item in raw_items:
                 sentiment = score_sentiment(item["headline"])
                 news_item = models.NewsItem(
                     symbol_id=symbol.id,
@@ -110,6 +146,25 @@ def poll_news_job():
                     db.commit()
                 except IntegrityError:
                     db.rollback()
+                    continue
+                db.refresh(news_item)
+                new_items.append((news_item, symbol.ticker, is_general))
+
+        for symbol in symbols:
+            save_items(symbol, fetch_news(symbol.ticker), is_general=False)
+        save_items(general_symbol, fetch_general_market_news(), is_general=True)
+
+        if new_items:
+            batch_input = [{"ticker": ticker, "headline": item.headline} for item, ticker, _ in new_items]
+            classifications = classify_batch(batch_input)
+            for (item, _ticker, is_general), cls in zip(new_items, classifications):
+                if not cls:
+                    continue
+                item.topic = cls.get("topic")
+                item.scope = cls.get("scope") or ("market_wide" if is_general else None)
+                item.impact_direction = cls.get("impact_direction")
+                item.classified_at = datetime.now(timezone.utc)
+            db.commit()
     finally:
         db.close()
 
@@ -224,7 +279,7 @@ def update_position(ticker: str, payload: SymbolPositionUpdate, db: Session = De
 
 @app.get("/symbols", response_model=list[SymbolOut])
 def list_symbols(db: Session = Depends(get_db)):
-    return db.query(models.Symbol).all()
+    return db.query(models.Symbol).filter(models.Symbol.ticker != GENERAL_TICKER).all()
 
 
 @app.get("/symbols/{ticker}/price", response_model=PricePointOut)
@@ -427,13 +482,31 @@ def get_ai_analysis(ticker: str, refresh: bool = False, db: Session = Depends(ge
     if is_stale or refresh:
         insight = _compute_insights(db, symbol)
         current_price = _get_current_price(db, symbol)
-        headlines = [
-            n.headline
-            for n in db.query(models.NewsItem)
+        stock_news = (
+            db.query(models.NewsItem)
             .filter_by(symbol_id=symbol.id)
             .order_by(desc(models.NewsItem.published_at))
-            .limit(8)
+            .limit(6)
             .all()
+        )
+        general_symbol = db.query(models.Symbol).filter_by(ticker=GENERAL_TICKER).first()
+        general_news = (
+            db.query(models.NewsItem)
+            .filter_by(symbol_id=general_symbol.id)
+            .order_by(desc(models.NewsItem.published_at))
+            .limit(4)
+            .all()
+            if general_symbol
+            else []
+        )
+        headlines = [
+            {
+                "headline": n.headline,
+                "topic": n.topic,
+                "scope": n.scope,
+                "impact_direction": n.impact_direction,
+            }
+            for n in [*stock_news, *general_news]
         ]
         try:
             text = generate_analysis(symbol.ticker, current_price, insight.model_dump(), headlines)
@@ -456,6 +529,21 @@ def get_news(ticker: str, db: Session = Depends(get_db)):
     return (
         db.query(models.NewsItem)
         .filter_by(symbol_id=symbol.id)
+        .order_by(desc(models.NewsItem.published_at))
+        .limit(20)
+        .all()
+    )
+
+
+@app.get("/market/news", response_model=list[NewsItemOut])
+def get_general_market_news(db: Session = Depends(get_db)):
+    general_symbol = db.query(models.Symbol).filter_by(ticker=GENERAL_TICKER).first()
+    if not general_symbol:
+        return []
+
+    return (
+        db.query(models.NewsItem)
+        .filter_by(symbol_id=general_symbol.id)
         .order_by(desc(models.NewsItem.published_at))
         .limit(20)
         .all()

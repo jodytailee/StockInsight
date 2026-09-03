@@ -46,6 +46,10 @@ class NewsItem(Base):
     published_at: Mapped[datetime] = mapped_column(DateTime)
     sentiment_score: Mapped[float] = mapped_column(Float)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    topic: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    scope: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "market_wide" | "stock_specific"
+    impact_direction: Mapped[str | None] = mapped_column(String(10), nullable=True)  # "up" | "down" | "neutral"
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     symbol: Mapped["Symbol"] = relationship(back_populates="news")
 

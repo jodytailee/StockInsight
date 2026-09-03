@@ -60,6 +60,9 @@ class NewsItemOut(BaseModel):
     url: str
     published_at: datetime
     sentiment_score: float
+    topic: str | None = None
+    scope: str | None = None
+    impact_direction: str | None = None
 
 
 class MlDirectionOut(BaseModel):

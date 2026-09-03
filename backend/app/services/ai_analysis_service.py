@@ -6,7 +6,7 @@ ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 MODEL = "claude-sonnet-5"
 
 
-def _build_prompt(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[str]) -> str:
+def _build_prompt(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[dict]) -> str:
     position_line = "Sin posición registrada."
     if insight_data.get("quantity") and insight_data.get("avg_cost"):
         position_line = (
@@ -25,7 +25,12 @@ def _build_prompt(ticker: str, current_price: float, insight_data: dict, recent_
             parts.append(f"1 semana: {ml_1w['probability_up'] * 100:.0f}% prob. de subir (accuracy histórico {ml_1w['test_accuracy'] * 100:.0f}%)")
         ml_line = "Modelo ML (RandomForest sobre indicadores técnicos): " + "; ".join(parts)
 
-    headlines_block = "\n".join(f"- {h}" for h in recent_headlines[:8]) or "Sin noticias recientes."
+    def _headline_line(h: dict) -> str:
+        tags = [t for t in [h.get("topic"), h.get("scope"), h.get("impact_direction")] if t]
+        tag_str = f" ({', '.join(tags)})" if tags else ""
+        return f"- {h['headline']}{tag_str}"
+
+    headlines_block = "\n".join(_headline_line(h) for h in recent_headlines[:10]) or "Sin noticias recientes."
 
     fundamentals = insight_data.get("fundamentals")
     fundamentals_line = "Sin datos fundamentales disponibles."
@@ -56,13 +61,13 @@ Datos disponibles:
 - Fundamentales (Finnhub): {fundamentals_line}
 - Recomendación del sistema a 1 semana: {insight_data.get('recommendation_1w', {}).get('action')}
 
-Titulares recientes:
+Titulares recientes (incluye noticias específicas de la empresa y de mercado en general, ya clasificadas por tema/alcance/impacto estimado entre paréntesis):
 {headlines_block}
 
 Escribí un análisis de 4-5 oraciones en español, incorporando también una lectura de los fundamentales (¿la valuación por P/E parece cara o barata para la industria? ¿el cash flow y los márgenes son sanos? ¿el nivel de deuda es preocupante? ¿el crecimiento de EPS está en el rango saludable de 10-25% anual, estancado, o negativo?), explicando el razonamiento detrás de la recomendación actual, mencionando qué señales apuntan en qué dirección y si hay contradicciones entre ellas (ej. analistas positivos pero sentimiento de noticias negativo, o buen momentum pero fundamentales débiles). Sé directo y concreto, sin relleno. Terminá SIEMPRE con una frase aclarando que esto es informativo, generado automáticamente, y no es asesoría financiera profesional."""
 
 
-def generate_analysis(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[str]) -> str:
+def generate_analysis(ticker: str, current_price: float, insight_data: dict, recent_headlines: list[dict]) -> str:
     prompt = _build_prompt(ticker, current_price, insight_data, recent_headlines)
 
     response = requests.post(

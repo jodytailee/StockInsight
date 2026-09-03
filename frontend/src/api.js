@@ -83,3 +83,9 @@ export async function fetchNews(ticker) {
   return res.json()
 }
 
+export async function fetchMarketNews() {
+  const res = await fetch(`${API_URL}/market/news`)
+  if (!res.ok) throw new Error('No se pudo obtener las noticias de mercado')
+  return res.json()
+}
+
